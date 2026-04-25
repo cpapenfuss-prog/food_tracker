@@ -4,10 +4,12 @@ import Dashboard from "./Dashboard.jsx";
 import LogView from "./LogView.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SettingsView from "./SettingsView.jsx";
+import BriefingView from "./BriefingView.jsx";
 
 const NAV = [
   { id: "dashboard", icon: "◈", label: "Today" },
   { id: "log", icon: "＋", label: "Log" },
+  { id: "briefing", icon: "⚡", label: "Brief" },
   { id: "history", icon: "◷", label: "History" },
   { id: "settings", icon: "◎", label: "Settings" },
 ];
@@ -109,6 +111,7 @@ export default function App() {
       <div style={{ padding: "16px" }}>
         {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} totalBurn={totalBurn} settings={settings} />}
         {tab === "log" && <LogView dayData={dayData} updateDay={updateDay} apiKey={settings.apiKey} walkBurn={walkBurn} />}
+        {tab === "briefing" && <BriefingView allData={allData} settings={settings} />}
         {tab === "history" && <HistoryView allData={allData} settings={settings} />}
         {tab === "settings" && (
           <SettingsView settings={settings} onSave={s => {
