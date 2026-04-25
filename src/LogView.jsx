@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { COLORS, Card, SectionTitle, Label, Input, primaryBtn, ghostBtn, chipBtn, StatMini, feelColor, feelColor2 } from "./shared.jsx";
 
-async function estimateMeal(description, apiKey) {
-  const prompt = `You are a sports nutrition assistant helping an endurance athlete (cyclist/runner) track macros for body composition (getting leaner while fueling performance).
+// ── API call — handles text only, image only, or both ─────────────────────────
+async function estimateMeal(description, apiKey, imageBase64 = null, imageType = "image/jpeg") {
+  const instructions = `You are a sports nutrition assistant helping an endurance athlete (cyclist/runner) track macros for body composition (getting leaner while fueling performance).
 
-Estimate the macros for this meal: "${description}"
+${imageBase64 ? "Analyze the food photo provided" : ""}${imageBase64 && description ? " along with this description: " : ""}${!imageBase64 && description ? `Estimate macros for: ` : ""}${description ? `"${description}"` : ""}
 
 Return ONLY valid JSON, no markdown, no explanation:
 {
@@ -17,7 +18,14 @@ Return ONLY valid JSON, no markdown, no explanation:
   "note": "one brief note about the estimate"
 }
 
-Be realistic. Restaurant portions are typically larger than home portions. Round to nearest 5g for macros.`;
+Be realistic about portion sizes. Restaurant portions are larger than home portions. If you can see the plate in the photo, use it to judge portion size. Round to nearest 5g for macros.`;
+
+  const content = imageBase64
+    ? [
+        { type: "image", source: { type: "base64", media_type: imageType, data: imageBase64 } },
+        { type: "text", text: instructions },
+      ]
+    : instructions;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -30,7 +38,7 @@ Be realistic. Restaurant portions are typically larger than home portions. Round
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     }),
   });
   const data = await res.json();
@@ -49,14 +57,12 @@ function Tag({ label, color }) {
   );
 }
 
+// ── Editable meal log ─────────────────────────────────────────────────────────
 function MealLog({ meals, updateDay }) {
   const [editIdx, setEditIdx] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  function startEdit(i) {
-    setEditIdx(i);
-    setEditForm({ ...meals[i] });
-  }
+  function startEdit(i) { setEditIdx(i); setEditForm({ ...meals[i] }); }
 
   function saveEdit() {
     const updated = meals.map((m, i) => i === editIdx ? {
@@ -82,7 +88,6 @@ function MealLog({ meals, updateDay }) {
       {meals.map((m, i) => (
         <div key={m.id || i}>
           {editIdx === i ? (
-            // ── Edit mode ──
             <div style={{ padding: "10px 0", borderBottom: i < meals.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
               <input
                 value={editForm.name}
@@ -117,7 +122,6 @@ function MealLog({ meals, updateDay }) {
               </div>
             </div>
           ) : (
-            // ── View mode ──
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "8px 0",
@@ -140,11 +144,16 @@ function MealLog({ meals, updateDay }) {
   );
 }
 
+// ── Food logger with photo support ────────────────────────────────────────────
 function FoodLogger({ dayData, updateDay, apiKey }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
+  const [imageBase64, setImageBase64] = useState(null);
+  const [imageType, setImageType] = useState("image/jpeg");
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const fileRef = useRef();
 
   const QUICK = [
     "Scrambled eggs with toast",
@@ -157,12 +166,32 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
     "Avocado toast with egg",
   ];
 
+  function handlePhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageType(file.type || "image/jpeg");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      setImagePreviewUrl(dataUrl);
+      // Strip the data:image/...;base64, prefix
+      setImageBase64(dataUrl.split(",")[1]);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearPhoto() {
+    setImageBase64(null);
+    setImagePreviewUrl(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function estimate() {
-    if (!input.trim()) return;
+    if (!input.trim() && !imageBase64) return;
     if (!apiKey) { setError("Add your Anthropic API key in Settings first."); return; }
     setLoading(true); setError(""); setPreview(null);
     try {
-      const result = await estimateMeal(input, apiKey);
+      const result = await estimateMeal(input, apiKey, imageBase64, imageType);
       setPreview(result);
     } catch (e) {
       setError("Could not estimate: " + e.message);
@@ -174,32 +203,78 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
     if (!preview) return;
     const meals = [...(dayData.meals || []), { ...preview, id: Date.now() }];
     updateDay({ meals });
-    setInput(""); setPreview(null);
+    setInput(""); setPreview(null); clearPhoto();
   }
+
+  const canEstimate = (input.trim() || imageBase64) && !loading;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Card>
-        <SectionTitle>Describe your meal</SectionTitle>
+        <SectionTitle>Log a meal</SectionTitle>
+
+        {/* Photo upload */}
+        <div style={{ marginBottom: 10 }}>
+          {imagePreviewUrl ? (
+            <div style={{ position: "relative" }}>
+              <img
+                src={imagePreviewUrl}
+                alt="Food"
+                style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, display: "block" }}
+              />
+              <button onClick={clearPhoto} style={{
+                position: "absolute", top: 6, right: 6,
+                background: "rgba(0,0,0,0.6)", border: "none", color: "#fff",
+                borderRadius: "50%", width: 28, height: 28, cursor: "pointer",
+                fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()} style={{
+              width: "100%", background: COLORS.surfaceHigh,
+              border: `1.5px dashed ${COLORS.border}`,
+              borderRadius: 8, color: COLORS.textDim, padding: "16px",
+              cursor: "pointer", fontSize: 13, display: "flex",
+              alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              <span style={{ fontSize: 20 }}>📷</span>
+              <span>Tap to add a photo of your plate</span>
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhoto}
+            style={{ display: "none" }}
+          />
+        </div>
+
+        {/* Text description */}
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="e.g. Wiener Schnitzel with potato salad at a Munich restaurant, medium portion"
-          rows={3}
+          placeholder={imageBase64
+            ? "Optional: add a description to help the estimate (e.g. restaurant portion, added extra sauce)"
+            : "Describe your meal — e.g. Wiener Schnitzel with potato salad, medium portion"}
+          rows={2}
           style={{
             width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`,
             borderRadius: 8, color: COLORS.text, padding: "10px 12px", fontSize: 13,
             resize: "none", fontFamily: "inherit", boxSizing: "border-box", outline: "none",
           }}
         />
-        <button onClick={estimate} disabled={loading || !input.trim()} style={{
-          ...primaryBtn, marginTop: 10, opacity: loading || !input.trim() ? 0.5 : 1, width: "100%",
+
+        <button onClick={estimate} disabled={!canEstimate} style={{
+          ...primaryBtn, marginTop: 10, opacity: !canEstimate ? 0.5 : 1, width: "100%",
         }}>
-          {loading ? "Estimating…" : "Estimate with AI →"}
+          {loading ? "Analysing…" : imageBase64 ? "Analyse photo with AI →" : "Estimate with AI →"}
         </button>
         {error && <div style={{ fontSize: 12, color: COLORS.red, marginTop: 8 }}>{error}</div>}
       </Card>
 
+      {/* Result preview */}
       {preview && (
         <Card style={{ borderColor: COLORS.accent + "66" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
@@ -223,6 +298,7 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
         </Card>
       )}
 
+      {/* Quick templates */}
       <Card>
         <SectionTitle>Quick templates</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -242,6 +318,7 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
   );
 }
 
+// ── Workout logger ────────────────────────────────────────────────────────────
 function WorkoutLogger({ dayData, updateDay }) {
   const w = dayData.workout || {};
   const [form, setForm] = useState({
@@ -290,13 +367,12 @@ function WorkoutLogger({ dayData, updateDay }) {
   );
 }
 
+// ── Walk logger ───────────────────────────────────────────────────────────────
 function WalkLogger({ dayData, updateDay }) {
   const [minutes, setMinutes] = useState(dayData.walk?.minutes ?? "");
   const burn = Math.round((Number(minutes) || 0) * 4.5);
 
-  function save() {
-    updateDay({ walk: { minutes: Number(minutes) } });
-  }
+  function save() { updateDay({ walk: { minutes: Number(minutes) } }); }
 
   return (
     <Card>
@@ -317,6 +393,7 @@ function WalkLogger({ dayData, updateDay }) {
   );
 }
 
+// ── WHOOP logger ──────────────────────────────────────────────────────────────
 function WhoopLogger({ dayData, updateDay }) {
   const wh = dayData.whoop || {};
   const [form, setForm] = useState({ recovery: wh.recovery ?? "", hrv: wh.hrv ?? "", rhr: wh.rhr ?? "", sleep: wh.sleep ?? "" });
@@ -339,6 +416,7 @@ function WhoopLogger({ dayData, updateDay }) {
   );
 }
 
+// ── Body logger ───────────────────────────────────────────────────────────────
 function BodyLogger({ dayData, updateDay }) {
   const b = dayData.body || {};
   const [form, setForm] = useState({ weight: b.weight ?? "", energy: b.energy ?? "" });
@@ -373,18 +451,19 @@ function BodyLogger({ dayData, updateDay }) {
   );
 }
 
+// ── Main log view ─────────────────────────────────────────────────────────────
 export default function LogView({ dayData, updateDay, apiKey }) {
   const [section, setSection] = useState("food");
   const tabs = [["food", "Food"], ["workout", "Workout"], ["walk", "Walk"], ["whoop", "WHOOP"], ["body", "Body"]];
 
   return (
     <div>
-      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 16, overflowX: "auto" }}>
+      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 16 }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setSection(id)} style={{
             flex: 1, background: section === id ? COLORS.accent : "none",
             color: section === id ? "#000" : COLORS.textDim,
-            border: "none", borderRadius: 6, padding: "7px 6px",
+            border: "none", borderRadius: 6, padding: "7px 4px",
             fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
             whiteSpace: "nowrap",
           }}>{label}</button>
