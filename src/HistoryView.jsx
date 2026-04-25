@@ -57,37 +57,60 @@ export default function HistoryView({ allData, settings }) {
           <MiniChart values={weights} labels={weightDays.map(d => d.slice(5))} color={COLORS.blue} unit="kg" />
         </Card>
       )}
+
       {days.map(d => {
         const day = allData[d];
-        const cals = (day.meals || []).reduce((s, m) => s + (m.calories || 0), 0);
-        const burned = day.workout?.calories || 0;
+        const eaten = (day.meals || []).reduce((s, m) => s + (m.calories || 0), 0);
+        const workoutBurn = day.workout?.calories || 0;
+        const walkBurn = Math.round((day.walk?.minutes || 0) * 4.5);
+        const totalBurn = workoutBurn + walkBurn;
+        const totalTarget = settings.calories + totalBurn;
+        const gap = totalTarget - eaten;
+        const isUnder = gap >= 0;
+        const gapColor = Math.abs(gap) < 150 ? COLORS.green : isUnder ? COLORS.blue : COLORS.red;
         const rec = day.whoop?.recovery;
+
         return (
           <Card key={d}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontSize: 12, color: COLORS.textDim }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              {/* Left: date + workout */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: COLORS.textDim, marginBottom: 2 }}>
                   {new Date(d + "T12:00:00").toLocaleDateString("en-DE", { weekday: "short", day: "numeric", month: "short" })}
                 </div>
                 {day.workout && (
-                  <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: COLORS.textFaint }}>
                     {day.workout.type} · {day.workout.duration}min
                     {day.workout.tss ? ` · TSS ${day.workout.tss}` : ""}
                   </div>
                 )}
-                {day.body?.weight && (
-                  <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
-                    {day.body.weight} kg
+                {day.walk?.minutes > 0 && (
+                  <div style={{ fontSize: 11, color: COLORS.textFaint }}>
+                    Walk {day.walk.minutes} min
                   </div>
                 )}
+                {day.body?.weight && (
+                  <div style={{ fontSize: 11, color: COLORS.textFaint }}>{day.body.weight} kg</div>
+                )}
               </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                {rec != null && <RecoveryDot score={rec} />}
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: "monospace", color: cals > settings.calories ? COLORS.red : COLORS.accent, fontSize: 15, fontWeight: 700 }}>{cals || "—"}</div>
-                  <div style={{ fontSize: 10, color: COLORS.textFaint }}>kcal in</div>
-                  {burned > 0 && <div style={{ fontSize: 10, color: COLORS.blue }}>−{burned} burned</div>}
+
+              {/* Middle: WHOOP dot */}
+              {rec != null && <RecoveryDot score={rec} />}
+
+              {/* Right: calorie summary */}
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontFamily: "monospace", color: COLORS.accent, fontSize: 15, fontWeight: 700 }}>
+                  {eaten || "—"}
                 </div>
+                <div style={{ fontSize: 10, color: COLORS.textFaint }}>eaten</div>
+                <div style={{ fontSize: 10, color: COLORS.textDim }}>
+                  / {totalTarget} target
+                </div>
+                {eaten > 0 && (
+                  <div style={{ fontSize: 10, color: gapColor, fontWeight: 600, marginTop: 1 }}>
+                    {isUnder ? `${gap} under` : `${Math.abs(gap)} over`}
+                  </div>
+                )}
               </div>
             </div>
           </Card>

@@ -218,6 +218,33 @@ function WorkoutLogger({ dayData, updateDay }) {
   );
 }
 
+function WalkLogger({ dayData, updateDay }) {
+  const [minutes, setMinutes] = useState(dayData.walk?.minutes ?? "");
+  const burn = Math.round((Number(minutes) || 0) * 4.5);
+
+  function save() {
+    updateDay({ walk: { minutes: Number(minutes) } });
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Walking</SectionTitle>
+      <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 12, lineHeight: 1.5 }}>
+        Enter total walking time for the day. Estimated burn uses 4.5 kcal/min (~80 kg). This adds to your calorie target.
+      </div>
+      <Label>Minutes walked</Label>
+      <Input value={minutes} onChange={setMinutes} placeholder="e.g. 45" type="number" />
+      {minutes > 0 && (
+        <div style={{ marginTop: 10, padding: "10px 12px", background: COLORS.surfaceHigh, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: COLORS.textDim }}>{minutes} min walking</span>
+          <span style={{ fontFamily: "monospace", color: COLORS.blue, fontWeight: 700 }}>~{burn} kcal</span>
+        </div>
+      )}
+      <button onClick={save} style={{ ...primaryBtn, width: "100%", marginTop: 12 }}>Save</button>
+    </Card>
+  );
+}
+
 function WhoopLogger({ dayData, updateDay }) {
   const wh = dayData.whoop || {};
   const [form, setForm] = useState({ recovery: wh.recovery ?? "", hrv: wh.hrv ?? "", rhr: wh.rhr ?? "", sleep: wh.sleep ?? "" });
@@ -276,22 +303,24 @@ function BodyLogger({ dayData, updateDay }) {
 
 export default function LogView({ dayData, updateDay, apiKey }) {
   const [section, setSection] = useState("food");
-  const tabs = [["food", "Food"], ["workout", "Workout"], ["whoop", "WHOOP"], ["body", "Body"]];
+  const tabs = [["food", "Food"], ["workout", "Workout"], ["walk", "Walk"], ["whoop", "WHOOP"], ["body", "Body"]];
 
   return (
     <div>
-      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 16 }}>
+      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 16, overflowX: "auto" }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setSection(id)} style={{
             flex: 1, background: section === id ? COLORS.accent : "none",
             color: section === id ? "#000" : COLORS.textDim,
-            border: "none", borderRadius: 6, padding: "7px 0",
-            fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+            border: "none", borderRadius: 6, padding: "7px 6px",
+            fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+            whiteSpace: "nowrap",
           }}>{label}</button>
         ))}
       </div>
       {section === "food" && <FoodLogger dayData={dayData} updateDay={updateDay} apiKey={apiKey} />}
       {section === "workout" && <WorkoutLogger dayData={dayData} updateDay={updateDay} />}
+      {section === "walk" && <WalkLogger dayData={dayData} updateDay={updateDay} />}
       {section === "whoop" && <WhoopLogger dayData={dayData} updateDay={updateDay} />}
       {section === "body" && <BodyLogger dayData={dayData} updateDay={updateDay} />}
     </div>

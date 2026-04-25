@@ -49,7 +49,22 @@ export default function App() {
     fat: acc.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
-  const netCalories = totals.calories - (dayData.workout?.calories || 0);
+  // Total expenditure = workout + walking
+  const workoutBurn = dayData.workout?.calories || 0;
+  const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
+  const totalBurn = workoutBurn + walkBurn;
+
+  // Dynamic targets scale with expenditure
+  const scaleFactor = (settings.calories + totalBurn) / settings.calories;
+  const dynamicTargets = {
+    calories: settings.calories + totalBurn,
+    protein: Math.round(settings.protein * scaleFactor),
+    carbs: Math.round(settings.carbs * scaleFactor),
+    fat: Math.round(settings.fat * scaleFactor),
+  };
+
+  // Gap: positive = under target (good for body comp), negative = over
+  const calorieGap = dynamicTargets.calories - totals.calories;
 
   function shiftDate(delta) {
     const d = new Date(dateView + "T12:00:00");
@@ -92,8 +107,8 @@ export default function App() {
 
       {/* Content */}
       <div style={{ padding: "16px" }}>
-        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} netCalories={netCalories} settings={settings} />}
-        {tab === "log" && <LogView dayData={dayData} updateDay={updateDay} apiKey={settings.apiKey} />}
+        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} totalBurn={totalBurn} settings={settings} />}
+        {tab === "log" && <LogView dayData={dayData} updateDay={updateDay} apiKey={settings.apiKey} walkBurn={walkBurn} />}
         {tab === "history" && <HistoryView allData={allData} settings={settings} />}
         {tab === "settings" && (
           <SettingsView settings={settings} onSave={s => {

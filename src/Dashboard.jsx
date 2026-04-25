@@ -1,19 +1,21 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
 
-export default function Dashboard({ dayData, totals, netCalories, settings }) {
-  const calPct = Math.min((totals.calories / settings.calories) * 100, 100);
-  const netTarget = settings.calories - (dayData.workout?.calories || 0);
-  const surplus = netCalories - netTarget;
+export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, totalBurn, settings }) {
+  const calPct = Math.min((totals.calories / dynamicTargets.calories) * 100, 100);
+  const isUnder = calorieGap >= 0;
+  const gapColor = Math.abs(calorieGap) < 150 ? COLORS.green : isUnder ? COLORS.blue : COLORS.red;
+  const gapLabel = isUnder ? `${fmt(calorieGap)} under` : `${fmt(Math.abs(calorieGap))} over`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
             <svg width="80" height="80" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="32" fill="none" stroke={COLORS.border} strokeWidth="8" />
               <circle cx="40" cy="40" r="32" fill="none"
-                stroke={calPct > 95 ? COLORS.red : COLORS.accent}
+                stroke={calPct > 100 ? COLORS.red : calPct > 85 ? COLORS.accent : COLORS.green}
                 strokeWidth="8"
                 strokeDasharray={`${calPct * 2.01} 201`}
                 strokeLinecap="round"
@@ -23,28 +25,32 @@ export default function Dashboard({ dayData, totals, netCalories, settings }) {
             </svg>
             <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" }}>
               <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "monospace", lineHeight: 1 }}>{fmt(totals.calories)}</div>
-              <div style={{ fontSize: 9, color: COLORS.textDim, letterSpacing: 0.5 }}>kcal</div>
+              <div style={{ fontSize: 9, color: COLORS.textDim, letterSpacing: 0.5 }}>eaten</div>
             </div>
           </div>
+
           <div style={{ flex: 1 }}>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Calories eaten</div>
-              <div style={{ fontSize: 11, color: COLORS.textDim }}>Target: {settings.calories} kcal</div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "monospace", color: gapColor, lineHeight: 1 }}>
+                {gapLabel}
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 3 }}>
+                Target: {fmt(dynamicTargets.calories)} kcal
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 16 }}>
-              <StatMini label="Burned" val={dayData.workout?.calories || "—"} unit="kcal" color={COLORS.blue} />
-              <StatMini label="Net" val={fmt(netCalories)} unit="kcal"
-                color={surplus > 200 ? COLORS.red : surplus < -200 ? COLORS.blue : COLORS.green} />
+            <div style={{ display: "flex", gap: 12 }}>
+              <StatMini label="Base" val={settings.calories} unit="kcal" color={COLORS.textDim} />
+              {totalBurn > 0 && <StatMini label="Burned" val={totalBurn} unit="kcal" color={COLORS.blue} />}
             </div>
           </div>
         </div>
       </Card>
 
       <Card>
-        <SectionTitle>Macros</SectionTitle>
-        <MacroBar label="Protein" val={totals.protein} target={settings.protein} color={COLORS.green} />
-        <MacroBar label="Carbs" val={totals.carbs} target={settings.carbs} color={COLORS.accent} />
-        <MacroBar label="Fat" val={totals.fat} target={settings.fat} color={COLORS.purple} />
+        <SectionTitle>Macros · target adjusted for activity</SectionTitle>
+        <MacroBar label="Protein" val={totals.protein} target={dynamicTargets.protein} color={COLORS.green} />
+        <MacroBar label="Carbs" val={totals.carbs} target={dynamicTargets.carbs} color={COLORS.accent} />
+        <MacroBar label="Fat" val={totals.fat} target={dynamicTargets.fat} color={COLORS.purple} />
       </Card>
 
       {dayData.whoop ? (
@@ -83,6 +89,16 @@ export default function Dashboard({ dayData, totals, netCalories, settings }) {
               Feel: <span style={{ color: feelColor(dayData.workout.feel), fontWeight: 600, textTransform: "uppercase", fontSize: 10 }}>{dayData.workout.feel}</span>
             </div>
           )}
+        </Card>
+      )}
+
+      {dayData.walk?.minutes > 0 && (
+        <Card>
+          <SectionTitle>Walking</SectionTitle>
+          <div style={{ display: "flex", gap: 16 }}>
+            <StatMini label="Minutes" val={dayData.walk.minutes} color={COLORS.text} />
+            <StatMini label="Est. burn" val={Math.round(dayData.walk.minutes * 4.5)} unit="kcal" color={COLORS.blue} />
+          </div>
         </Card>
       )}
 
