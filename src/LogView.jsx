@@ -49,6 +49,97 @@ function Tag({ label, color }) {
   );
 }
 
+function MealLog({ meals, updateDay }) {
+  const [editIdx, setEditIdx] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  function startEdit(i) {
+    setEditIdx(i);
+    setEditForm({ ...meals[i] });
+  }
+
+  function saveEdit() {
+    const updated = meals.map((m, i) => i === editIdx ? {
+      ...m,
+      name: editForm.name,
+      calories: Number(editForm.calories),
+      protein: Number(editForm.protein),
+      carbs: Number(editForm.carbs),
+      fat: Number(editForm.fat),
+    } : m);
+    updateDay({ meals: updated });
+    setEditIdx(null);
+  }
+
+  function deleteEntry(i) {
+    updateDay({ meals: meals.filter((_, j) => j !== i) });
+    if (editIdx === i) setEditIdx(null);
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Today's log</SectionTitle>
+      {meals.map((m, i) => (
+        <div key={m.id || i}>
+          {editIdx === i ? (
+            // ── Edit mode ──
+            <div style={{ padding: "10px 0", borderBottom: i < meals.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+              <input
+                value={editForm.name}
+                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                style={{
+                  width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.accent}55`,
+                  borderRadius: 6, color: COLORS.text, padding: "6px 8px", fontSize: 13,
+                  fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8, outline: "none",
+                }}
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
+                {[["calories", "kcal"], ["protein", "P(g)"], ["carbs", "C(g)"], ["fat", "F(g)"]].map(([field, label]) => (
+                  <div key={field}>
+                    <div style={{ fontSize: 9, color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                    <input
+                      type="number"
+                      value={editForm[field]}
+                      onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
+                      style={{
+                        width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 5, color: COLORS.text, padding: "5px 6px", fontSize: 12,
+                        fontFamily: "monospace", boxSizing: "border-box", outline: "none",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={saveEdit} style={{ ...primaryBtn, flex: 1, padding: "7px" }}>Save</button>
+                <button onClick={() => setEditIdx(null)} style={{ ...ghostBtn, padding: "7px 12px" }}>Cancel</button>
+                <button onClick={() => deleteEntry(i)} style={{ background: COLORS.red + "22", border: `1px solid ${COLORS.red}44`, color: COLORS.red, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 13 }}>Delete</button>
+              </div>
+            </div>
+          ) : (
+            // ── View mode ──
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "8px 0",
+              borderBottom: i < meals.length - 1 ? `1px solid ${COLORS.border}` : "none",
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13 }}>{m.name}</div>
+                <div style={{ fontSize: 10, color: COLORS.textFaint }}>P:{m.protein}g C:{m.carbs}g F:{m.fat}g</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontFamily: "monospace", color: COLORS.accent, fontSize: 13 }}>{m.calories}</span>
+                <button onClick={() => startEdit(i)} style={{ background: "none", border: "none", color: COLORS.textDim, cursor: "pointer", fontSize: 13, padding: "2px 4px" }}>✎</button>
+                <button onClick={() => deleteEntry(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function FoodLogger({ dayData, updateDay, apiKey }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -145,26 +236,7 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
       </Card>
 
       {dayData.meals?.length > 0 && (
-        <Card>
-          <SectionTitle>Today's log</SectionTitle>
-          {dayData.meals.map((m, i) => (
-            <div key={m.id || i} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "8px 0",
-              borderBottom: i < dayData.meals.length - 1 ? `1px solid ${COLORS.border}` : "none",
-            }}>
-              <div>
-                <div style={{ fontSize: 13 }}>{m.name}</div>
-                <div style={{ fontSize: 10, color: COLORS.textFaint }}>P:{m.protein}g C:{m.carbs}g F:{m.fat}g</div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "monospace", color: COLORS.accent, fontSize: 13 }}>{m.calories}</span>
-                <button onClick={() => updateDay({ meals: dayData.meals.filter((_, j) => j !== i) })}
-                  style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
-              </div>
-            </div>
-          ))}
-        </Card>
+        <MealLog meals={dayData.meals} updateDay={updateDay} />
       )}
     </div>
   );
