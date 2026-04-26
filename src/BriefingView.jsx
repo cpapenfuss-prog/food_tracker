@@ -64,18 +64,24 @@ function tsbColor(tsb) {
   return COLORS.red;
 }
 
-// Compute dynamic macro targets scaled to total daily burn
+// Compute dynamic macro targets.
+// Only carbs scale with activity — protein is anchored to body weight,
+// fat stays moderate. Extra burn calories come almost entirely from carbs.
 function dynamicMacros(settings, totalBurn) {
-  const scale = (settings.calories + totalBurn) / settings.calories;
+  const extraCarbsG = Math.round(totalBurn / 4); // 4 kcal per gram of carbs
   return {
     calories: settings.calories + totalBurn,
-    protein: Math.round(settings.protein * scale),
-    carbs: Math.round(settings.carbs * scale),
-    fat: Math.round(settings.fat * scale),
+    protein: settings.protein,                    // fixed — body weight based
+    carbs: settings.carbs + extraCarbsG,          // scales with burn
+    fat: settings.fat,                            // stays moderate
   };
 }
 
-// Estimate kJ from normalized power + duration
+// Estimate kJ from normalized power + duration.
+// Sports science convention: 1 kJ of mechanical work ≈ 1 kcal of food energy
+// (cycling efficiency ~25%, so metabolic cost is ~4x mechanical, but
+// kJ output and kcal fuel requirement are numerically equivalent for fueling).
+// Alternatively accept a direct kJ entry.
 function estimateKJ(watts, durationMin) {
   return Math.round(watts * durationMin * 60 / 1000);
 }
@@ -277,6 +283,13 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
   const [plannedDuration, setPlannedDuration] = useState("");
   const [plannedWatts, setPlannedWatts] = useState("");
   const [plannedType, setPlannedType] = useState("");
+  const [plannedKJDirect, setPlannedKJDirect] = useState("");
+
+  // kJ resolution: direct entry takes priority over calculated
+  const calculatedKJ = plannedWatts && plannedDuration
+    ? estimateKJ(Number(plannedWatts), Number(plannedDuration))
+    : null;
+  const plannedKJ = plannedKJDirect ? Number(plannedKJDirect) : calculatedKJ;
 
   const pmc = computePMC(allData);
   const { ctl, atl, tsb, history, rampRate } = pmc;
@@ -355,10 +368,6 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
     }
     setLoading(false);
   }
-
-  const plannedKJ = plannedWatts && plannedDuration
-    ? estimateKJ(Number(plannedWatts), Number(plannedDuration))
-    : null;
 
   const RIDE_TYPES = ["Z1 Recovery", "Z2 Endurance", "Tempo", "Sweet Spot", "VO2max", "Race"];
 
@@ -441,7 +450,7 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
       {/* Planned ride inputs */}
       <Card>
         <SectionTitle>Planned ride (optional)</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div>
             <Label>Duration (min)</Label>
             <input type="number" value={plannedDuration} onChange={e => setPlannedDuration(e.target.value)}
@@ -452,6 +461,12 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
             <Label>Norm. power (W)</Label>
             <input type="number" value={plannedWatts} onChange={e => setPlannedWatts(e.target.value)}
               placeholder="200"
+              style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
+          </div>
+          <div>
+            <Label>Or enter kJ directly</Label>
+            <input type="number" value={plannedKJDirect} onChange={e => setPlannedKJDirect(e.target.value)}
+              placeholder="1500"
               style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
           </div>
         </div>
@@ -471,8 +486,8 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
         {plannedKJ && (
           <div style={{ display: "flex", gap: 16, padding: "8px 10px", background: COLORS.surfaceHigh, borderRadius: 8 }}>
             <StatMini label="Est. kJ" val={plannedKJ} color={COLORS.blue} />
-            <StatMini label="Est. kcal" val={plannedKJ} color={COLORS.accent} />
-            <StatMini label="Carbs/hr" val={Math.min(90, Math.round(plannedKJ / Number(plannedDuration) * 60 * 0.06))} unit="g" color={COLORS.green} />
+            <StatMini label="≈ kcal" val={plannedKJ} color={COLORS.accent} />
+            <StatMini label="Carbs/hr" val={Math.min(90, Math.round(plannedKJ / (Number(plannedDuration) || 60) * 60 * 0.25))} unit="g" color={COLORS.green} />
           </div>
         )}
       </Card>

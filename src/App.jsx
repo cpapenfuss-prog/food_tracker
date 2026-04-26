@@ -56,13 +56,12 @@ export default function App() {
   const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
   const totalBurn = workoutBurn + walkBurn;
 
-  // Dynamic targets scale with expenditure
-  const scaleFactor = (settings.calories + totalBurn) / settings.calories;
+  // Dynamic targets: only carbs scale with burn, protein and fat stay fixed
   const dynamicTargets = {
     calories: settings.calories + totalBurn,
-    protein: Math.round(settings.protein * scaleFactor),
-    carbs: Math.round(settings.carbs * scaleFactor),
-    fat: Math.round(settings.fat * scaleFactor),
+    protein: settings.protein,
+    carbs: settings.carbs + Math.round(totalBurn / 4),
+    fat: settings.fat,
   };
 
   // Gap: positive = under target (good for body comp), negative = over
