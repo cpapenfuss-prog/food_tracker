@@ -1,7 +1,8 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
 
-export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, totalBurn, settings, dayDescription }) {
-  const calPct = Math.min((totals.calories / dynamicTargets.calories) * 100, 100);
+export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, projectedTargets, totalBurn, plannedBurn, settings, dayDescription }) {
+  const activeTargets = plannedBurn > 0 ? projectedTargets : dynamicTargets;
+  const calPct = Math.min((totals.calories / activeTargets.calories) * 100, 100);
   const isUnder = calorieGap >= 0;
   const gapColor = Math.abs(calorieGap) < 150 ? COLORS.green : isUnder ? COLORS.blue : COLORS.red;
   const gapLabel = isUnder ? `${fmt(calorieGap)} under` : `${fmt(Math.abs(calorieGap))} over`;
@@ -44,22 +45,29 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
                 {gapLabel}
               </div>
               <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 3 }}>
-                Target: {fmt(dynamicTargets.calories)} kcal
+                Target: {fmt(activeTargets.calories)} kcal
+                {plannedBurn > 0 && <span style={{ color: COLORS.purple, marginLeft: 6 }}>· projected</span>}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <StatMini label="Base" val={settings.calories} unit="kcal" color={COLORS.textDim} />
               {totalBurn > 0 && <StatMini label="Burned" val={totalBurn} unit="kcal" color={COLORS.blue} />}
+              {plannedBurn > 0 && <StatMini label="Planned" val={plannedBurn} unit="kcal" color={COLORS.purple} />}
             </div>
+            {plannedBurn > 0 && (
+              <div style={{ marginTop: 8, fontSize: 10, color: COLORS.textFaint, fontStyle: "italic" }}>
+                {dayData.planned?.type} · targets include planned burn
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
       <Card>
-        <SectionTitle>Macros · target adjusted for activity</SectionTitle>
-        <MacroBar label="Protein" val={totals.protein} target={dynamicTargets.protein} color={COLORS.green} />
-        <MacroBar label="Carbs" val={totals.carbs} target={dynamicTargets.carbs} color={COLORS.accent} />
-        <MacroBar label="Fat" val={totals.fat} target={dynamicTargets.fat} color={COLORS.purple} />
+        <SectionTitle>Macros · {plannedBurn > 0 ? "projected full-day targets" : "adjusted for activity"}</SectionTitle>
+        <MacroBar label="Protein" val={totals.protein} target={activeTargets.protein} color={COLORS.green} />
+        <MacroBar label="Carbs" val={totals.carbs} target={activeTargets.carbs} color={COLORS.accent} />
+        <MacroBar label="Fat" val={totals.fat} target={activeTargets.fat} color={COLORS.purple} />
       </Card>
 
       {dayData.whoop ? (

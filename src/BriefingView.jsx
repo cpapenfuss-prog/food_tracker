@@ -130,21 +130,23 @@ function BriefingText({ text }) {
 }
 
 // ── AI call ───────────────────────────────────────────────────────────────────
-async function generateBriefing({ yesterday, todayData, dayDescription, plannedRide, pmc, settings, apiKey, last7 }) {
+async function generateBriefing({ yesterday, todayData, dayDescription, plannedRide, plannedRun, pmc, settings, apiKey, last7 }) {
 
   // Dynamic macro targets based on yesterday's actual total burn
   const yestTargets = dynamicMacros(settings, yesterday.totalBurn);
 
-  // Planned ride kJ if watts + duration provided
-  const plannedKJ = plannedRide.watts && plannedRide.duration
-    ? estimateKJ(Number(plannedRide.watts), Number(plannedRide.duration))
-    : null;
+  // Planned burn today
+  const plannedKJ = plannedRide
+    ? (plannedRide.kj || (plannedRide.watts && plannedRide.duration ? estimateKJ(Number(plannedRide.watts), Number(plannedRide.duration)) : 0))
+    : 0;
+  const plannedRunBurn = plannedRun?.burn || 0;
+  const totalPlannedBurn = plannedKJ + plannedRunBurn;
 
   // Today's dynamic targets based on planned burn
-  const todayTargets = dynamicMacros(settings, todayData.burn + (plannedKJ || 0));
+  const todayTargets = dynamicMacros(settings, todayData.burn + totalPlannedBurn);
 
   // Rest day detection
-  const isRestDay = !plannedRide.duration && !todayData.workout;
+  const isRestDay = !plannedRide && !plannedRun && !todayData.workout;
 
   const prompt = `You are an expert sports nutritionist and performance coach advising an experienced endurance athlete. Cyclist and runner, ~25 years experience. Goal: body composition improvement (leaner) while maintaining and building endurance performance. Currently using WHOOP, power meter, TrainingPeaks-style PMC tracking.
 
@@ -198,12 +200,19 @@ ${last7.map(d => `- ${d.date}: ${d.workout ? `${d.workout.type} TSS:${d.workout.
 ## TODAY'S PLAN (athlete's own words)
 "${dayDescription || "No description provided"}"
 
-${plannedRide.duration ? `
-## PLANNED RIDE DETAILS
+${plannedRide ? `
+## PLANNED RIDE
 - Duration: ${plannedRide.duration} min
-- Normalized power target: ${plannedRide.watts || "not specified"} W
-- Estimated kJ: ${plannedKJ || "calculate from above"}
-- Ride type/zone: ${plannedRide.type || "not specified"}
+- Normalized power: ${plannedRide.watts || "not specified"} W
+- kJ: ${plannedKJ || "not calculated"}  ≈ ${plannedKJ || "?"} kcal
+- Ride type: ${plannedRide.type || "not specified"}
+` : ""}
+
+${plannedRun ? `
+## PLANNED RUN
+- Duration: ${plannedRun.duration} min
+- Effort: ${plannedRun.effort || "moderate"}
+- Estimated burn: ~${plannedRun.burn} kcal
 ` : ""}
 
 ${isRestDay ? "## TODAY IS A REST DAY" : ""}
@@ -233,22 +242,31 @@ Provide specific targets based on today's plan:
 - Meal timing around any nap or recovery mentioned in the plan
 `}
 
-${plannedRide.duration && Number(plannedRide.duration) >= 60 ? `
+${plannedRide && Number(plannedRide.duration) >= 60 ? `
 **4. On-Bike Fueling Protocol**
-Based on ${plannedRide.duration} min at ${plannedRide.watts || "estimated"} W (~${plannedKJ || "?"} kJ):
-- Carbohydrate target per hour (use 60-90g/hr range depending on intensity and gut tolerance)
-- Start fueling timing (first 20-30 min rule)
-- Hydration targets (ml/hr based on typical conditions)
-- Specific product suggestions (gels, bars, bottles — keep practical)
+Based on ${plannedRide.duration} min at ${plannedRide.watts || "estimated"} W (~${plannedKJ || "?"} kJ ≈ ${plannedKJ || "?"} kcal):
+- Carbohydrate target per hour (60-90g/hr range depending on intensity and gut tolerance)
+- Start fueling at 20-30 min mark — do not wait until hungry
+- Hydration targets ml/hr based on typical conditions
+- Specific practical suggestions (gels, bars, bottles)
 - Post-ride recovery window: exact timing and what to eat within 30 min
+
+**5. Training Load Insight**
+` : plannedRun ? `
+**4. Run Fueling Protocol**
+Based on ${plannedRun.duration} min at ${plannedRun.effort || "moderate"} effort (~${plannedRun.burn} kcal):
+- Pre-run meal timing and composition (2-3h before: carb-focused, low fibre/fat)
+- During run fueling if >${Number(plannedRun.duration) >= 75 ? "yes, needed" : "not needed under 75 min"}: ${Number(plannedRun.duration) >= 75 ? "30-60g carbs/hr, gels or chews" : "water sufficient"}
+- Post-run recovery window: protein + carbs within 30 min, specific targets
+- Hydration: pre, during, post targets
 
 **5. Training Load Insight**
 ` : `
 **4. Training Load Insight**
 `}
-Comment on CTL/ATL/TSB trend. Is the current ramp rate sustainable? Any overreaching risk signals? What does TSB of ${pmc.tsb} mean for performance this week? Recommendations for the next 3-5 days of training structure.
+Comment on CTL/ATL/TSB trend. Is the current ramp rate sustainable? Any overreaching risk signals? What does TSB of ${pmc.tsb} mean for performance this week? Recommendations for next 3-5 days.
 
-**${plannedRide.duration && Number(plannedRide.duration) >= 60 ? "6" : "5"}. Priority Action**
+**${plannedRide && Number(plannedRide.duration) >= 60 ? "6" : plannedRun ? "6" : "5"}. Priority Action**
 One single most important thing for today. Be specific.
 
 Write as a knowledgeable coach. Use numbers throughout. Be direct.`;
@@ -279,17 +297,54 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState(null);
 
+  // Activity type toggle
+  const [activityMode, setActivityMode] = useState("ride"); // "ride" | "run"
+
   // Planned ride inputs
   const [plannedDuration, setPlannedDuration] = useState("");
   const [plannedWatts, setPlannedWatts] = useState("");
   const [plannedType, setPlannedType] = useState("");
   const [plannedKJDirect, setPlannedKJDirect] = useState("");
 
+  // Planned run inputs
+  const [runDuration, setRunDuration] = useState("");
+  const [runEffort, setRunEffort] = useState("");
+
   // kJ resolution: direct entry takes priority over calculated
   const calculatedKJ = plannedWatts && plannedDuration
     ? estimateKJ(Number(plannedWatts), Number(plannedDuration))
     : null;
   const plannedKJ = plannedKJDirect ? Number(plannedKJDirect) : calculatedKJ;
+
+  // Estimated run burn: easy ~11, moderate ~13, hard ~16, race ~18 kcal/min at ~82kg
+  const RUN_KCAL_PER_MIN = { easy: 11, moderate: 13, hard: 16, race: 18 };
+  const runBurn = runDuration && runEffort
+    ? Math.round(Number(runDuration) * (RUN_KCAL_PER_MIN[runEffort] || 13))
+    : null;
+
+  // Total planned burn for dashboard
+  const plannedBurn = activityMode === "ride"
+    ? (plannedKJ || 0)
+    : (runBurn || 0);
+
+  // Persist planned activity to today's data so dashboard picks it up
+  function savePlanned(field, val) {
+    updateDay({ planned: { ...(allData[todayKey]?.planned || {}), [field]: val } });
+  }
+
+  // Sync planned burn to storage whenever it changes
+  const savedPlannedBurn = allData[todayKey]?.planned?.burn || 0;
+
+  function commitPlannedBurn() {
+    updateDay({
+      planned: {
+        type: activityMode === "ride" ? (plannedType || "Ride") : `Run (${runEffort || "moderate"})`,
+        duration: activityMode === "ride" ? plannedDuration : runDuration,
+        burn: plannedBurn,
+        kj: activityMode === "ride" ? plannedKJ : null,
+      }
+    });
+  }
 
   const pmc = computePMC(allData);
   const { ctl, atl, tsb, history, rampRate } = pmc;
@@ -354,11 +409,13 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
 
   async function generate() {
     if (!settings.apiKey) { setError("Add your Anthropic API key in Settings first."); return; }
+    commitPlannedBurn();
     setLoading(true); setError(""); setBriefing("");
     try {
       const text = await generateBriefing({
         yesterday, todayData, dayDescription,
-        plannedRide: { duration: plannedDuration, watts: plannedWatts, type: plannedType },
+        plannedRide: activityMode === "ride" ? { duration: plannedDuration, watts: plannedWatts, type: plannedType, kj: plannedKJ } : null,
+        plannedRun: activityMode === "run" ? { duration: runDuration, effort: runEffort, burn: runBurn } : null,
         pmc, settings, apiKey: settings.apiKey, last7,
       });
       setBriefing(text);
@@ -447,48 +504,104 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
         />
       </Card>
 
-      {/* Planned ride inputs */}
+      {/* Planned activity */}
       <Card>
-        <SectionTitle>Planned ride (optional)</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div>
-            <Label>Duration (min)</Label>
-            <input type="number" value={plannedDuration} onChange={e => setPlannedDuration(e.target.value)}
-              placeholder="120"
-              style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
-          </div>
-          <div>
-            <Label>Norm. power (W)</Label>
-            <input type="number" value={plannedWatts} onChange={e => setPlannedWatts(e.target.value)}
-              placeholder="200"
-              style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
-          </div>
-          <div>
-            <Label>Or enter kJ directly</Label>
-            <input type="number" value={plannedKJDirect} onChange={e => setPlannedKJDirect(e.target.value)}
-              placeholder="1500"
-              style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
-          </div>
-        </div>
-
-        {/* Ride type */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-          {RIDE_TYPES.map(t => (
-            <button key={t} onClick={() => setPlannedType(t === plannedType ? "" : t)} style={{
-              background: plannedType === t ? COLORS.accent + "22" : COLORS.surfaceHigh,
-              border: `1px solid ${plannedType === t ? COLORS.accent : COLORS.border}`,
-              color: plannedType === t ? COLORS.accent : COLORS.textDim,
-              borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
-            }}>{t}</button>
+        {/* Mode toggle */}
+        <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 14 }}>
+          {[["ride", "🚴 Ride"], ["run", "🏃 Run"]].map(([mode, label]) => (
+            <button key={mode} onClick={() => setActivityMode(mode)} style={{
+              flex: 1, background: activityMode === mode ? COLORS.accent : "none",
+              color: activityMode === mode ? "#000" : COLORS.textDim,
+              border: "none", borderRadius: 6, padding: "7px 0",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+            }}>{label}</button>
           ))}
         </div>
 
-        {plannedKJ && (
-          <div style={{ display: "flex", gap: 16, padding: "8px 10px", background: COLORS.surfaceHigh, borderRadius: 8 }}>
-            <StatMini label="Est. kJ" val={plannedKJ} color={COLORS.blue} />
-            <StatMini label="≈ kcal" val={plannedKJ} color={COLORS.accent} />
-            <StatMini label="Carbs/hr" val={Math.min(90, Math.round(plannedKJ / (Number(plannedDuration) || 60) * 60 * 0.25))} unit="g" color={COLORS.green} />
-          </div>
+        {activityMode === "ride" ? (
+          <>
+            <SectionTitle>Planned ride (optional)</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <Label>Duration (min)</Label>
+                <input type="number" value={plannedDuration} onChange={e => setPlannedDuration(e.target.value)}
+                  placeholder="120"
+                  style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
+              </div>
+              <div>
+                <Label>Norm. power (W)</Label>
+                <input type="number" value={plannedWatts} onChange={e => setPlannedWatts(e.target.value)}
+                  placeholder="200"
+                  style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
+              </div>
+              <div>
+                <Label>Or kJ direct</Label>
+                <input type="number" value={plannedKJDirect} onChange={e => setPlannedKJDirect(e.target.value)}
+                  placeholder="1500"
+                  style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {RIDE_TYPES.map(t => (
+                <button key={t} onClick={() => setPlannedType(t === plannedType ? "" : t)} style={{
+                  background: plannedType === t ? COLORS.accent + "22" : COLORS.surfaceHigh,
+                  border: `1px solid ${plannedType === t ? COLORS.accent : COLORS.border}`,
+                  color: plannedType === t ? COLORS.accent : COLORS.textDim,
+                  borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                }}>{t}</button>
+              ))}
+            </div>
+            {plannedKJ > 0 && (
+              <div style={{ display: "flex", gap: 16, padding: "8px 10px", background: COLORS.surfaceHigh, borderRadius: 8 }}>
+                <StatMini label="kJ" val={plannedKJ} color={COLORS.blue} />
+                <StatMini label="≈ kcal" val={plannedKJ} color={COLORS.accent} />
+                <StatMini label="Carbs/hr" val={Math.min(90, Math.round(plannedKJ / (Number(plannedDuration) || 60) * 60 * 0.25))} unit="g" color={COLORS.green} />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <SectionTitle>Planned run (optional)</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <Label>Duration (min)</Label>
+                <input type="number" value={runDuration} onChange={e => setRunDuration(e.target.value)}
+                  placeholder="60"
+                  style={{ width: "100%", background: COLORS.surfaceHigh, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box", outline: "none" }} />
+              </div>
+              <div>
+                <Label>Effort level</Label>
+                <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+                  {["easy", "moderate", "hard", "race"].map(e => (
+                    <button key={e} onClick={() => setRunEffort(e)} style={{
+                      flex: 1, background: runEffort === e ? COLORS.accent + "22" : COLORS.surfaceHigh,
+                      border: `1px solid ${runEffort === e ? COLORS.accent : COLORS.border}`,
+                      color: runEffort === e ? COLORS.accent : COLORS.textDim,
+                      borderRadius: 5, padding: "6px 2px", fontSize: 10, cursor: "pointer", fontWeight: 600,
+                    }}>{e}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {runBurn && (
+              <div style={{ display: "flex", gap: 16, padding: "8px 10px", background: COLORS.surfaceHigh, borderRadius: 8 }}>
+                <StatMini label="Est. burn" val={runBurn} unit="kcal" color={COLORS.accent} />
+                <StatMini label="Carbs needed" val={Math.round(runBurn * 0.6 / 4)} unit="g" color={COLORS.green} />
+                {Number(runDuration) >= 75 && <StatMini label="Gel/hr" val={Math.round(60 / Number(runDuration) * (runBurn * 0.6 / 4) / 25)} color={COLORS.blue} />}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Save planned button */}
+        {plannedBurn > 0 && (
+          <button onClick={commitPlannedBurn} style={{
+            marginTop: 10, background: COLORS.surfaceHigh, border: `1px solid ${COLORS.accent}55`,
+            color: COLORS.accent, borderRadius: 8, padding: "8px 14px", fontSize: 12,
+            cursor: "pointer", width: "100%", fontWeight: 600,
+          }}>
+            ↑ Update dashboard targets with this plan ({plannedBurn} kcal planned)
+          </button>
         )}
       </Card>
 

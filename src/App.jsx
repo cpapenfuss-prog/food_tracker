@@ -51,21 +51,29 @@ export default function App() {
     fat: acc.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
-  // Total expenditure = workout + walking
+  // Total expenditure = logged workout + walking + planned (from briefing)
   const workoutBurn = dayData.workout?.calories || 0;
   const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
+  const plannedBurn = dayData.planned?.burn || 0;
   const totalBurn = workoutBurn + walkBurn;
+  const projectedBurn = totalBurn + plannedBurn;
 
-  // Dynamic targets: only carbs scale with burn, protein and fat stay fixed
+  // Dynamic targets: actual (logged) and projected (including planned)
   const dynamicTargets = {
     calories: settings.calories + totalBurn,
     protein: settings.protein,
     carbs: settings.carbs + Math.round(totalBurn / 4),
     fat: settings.fat,
   };
+  const projectedTargets = {
+    calories: settings.calories + projectedBurn,
+    protein: settings.protein,
+    carbs: settings.carbs + Math.round(projectedBurn / 4),
+    fat: settings.fat,
+  };
 
-  // Gap: positive = under target (good for body comp), negative = over
-  const calorieGap = dynamicTargets.calories - totals.calories;
+  // Gap against projected full-day target if planned, else actual
+  const calorieGap = (plannedBurn > 0 ? projectedTargets.calories : dynamicTargets.calories) - totals.calories;
 
   function shiftDate(delta) {
     const d = new Date(dateView + "T12:00:00");
@@ -108,7 +116,7 @@ export default function App() {
 
       {/* Content */}
       <div style={{ padding: "16px" }}>
-        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} totalBurn={totalBurn} settings={settings} dayDescription={dayData.dayDescription} />}
+        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} projectedTargets={projectedTargets} totalBurn={totalBurn} plannedBurn={plannedBurn} settings={settings} dayDescription={dayData.dayDescription} />}
         {tab === "log" && <LogView dayData={dayData} updateDay={updateDay} apiKey={settings.apiKey} walkBurn={walkBurn} />}
         {tab === "briefing" && <BriefingView allData={allData} settings={settings} updateDay={updateDay} todayKey={dateView} />}
         {tab === "history" && <HistoryView allData={allData} settings={settings} />}
