@@ -1,6 +1,6 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
 
-export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, totalBurn, settings }) {
+export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, totalBurn, settings, dayDescription }) {
   const calPct = Math.min((totals.calories / dynamicTargets.calories) * 100, 100);
   const isUnder = calorieGap >= 0;
   const gapColor = Math.abs(calorieGap) < 150 ? COLORS.green : isUnder ? COLORS.blue : COLORS.red;
@@ -9,6 +9,15 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
+      {/* Day description */}
+      {dayDescription && (
+        <Card style={{ borderLeft: `3px solid ${COLORS.accent}` }}>
+          <div style={{ fontSize: 10, color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Today's plan</div>
+          <div style={{ fontSize: 13, color: COLORS.textDim, lineHeight: 1.5, fontStyle: "italic" }}>"{dayDescription}"</div>
+        </Card>
+      )}
+
+      {/* Calorie Status */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>

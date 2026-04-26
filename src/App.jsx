@@ -109,9 +109,9 @@ export default function App() {
 
       {/* Content */}
       <div style={{ padding: "16px" }}>
-        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} totalBurn={totalBurn} settings={settings} />}
+        {tab === "dashboard" && <Dashboard dayData={dayData} totals={totals} calorieGap={calorieGap} dynamicTargets={dynamicTargets} totalBurn={totalBurn} settings={settings} dayDescription={dayData.dayDescription} />}
         {tab === "log" && <LogView dayData={dayData} updateDay={updateDay} apiKey={settings.apiKey} walkBurn={walkBurn} />}
-        {tab === "briefing" && <BriefingView allData={allData} settings={settings} />}
+        {tab === "briefing" && <BriefingView allData={allData} settings={settings} updateDay={updateDay} todayKey={dateView} />}
         {tab === "history" && <HistoryView allData={allData} settings={settings} />}
         {tab === "settings" && (
           <SettingsView settings={settings} onSave={s => {
