@@ -269,6 +269,22 @@ Comment on CTL/ATL/TSB trend. Is the current ramp rate sustainable? Any overreac
 **${plannedRide && Number(plannedRide.duration) >= 60 ? "6" : plannedRun ? "6" : "5"}. Priority Action**
 One single most important thing for today. Be specific.
 
+---
+
+After your briefing, output a JSON block with today's specific targets. This is REQUIRED — the app uses it to set the dashboard numbers. Format exactly like this with no extra text after:
+
+\`\`\`json
+{
+  "calories": <number>,
+  "protein": <number>,
+  "carbs": <number>,
+  "fat": <number>,
+  "note": "<one line explaining the key adjustment vs baseline>"
+}
+\`\`\`
+
+Base these on your actual recommendations above. Reflect activity, recovery state, body comp goal, and yesterday's fueling. Do not just repeat the baseline.
+
 Write as a knowledgeable coach. Use numbers throughout. Be direct.`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -418,7 +434,21 @@ export default function BriefingView({ allData, settings, updateDay, todayKey })
         plannedRun: activityMode === "run" ? { duration: runDuration, effort: runEffort, burn: runBurn } : null,
         pmc, settings, apiKey: settings.apiKey, last7,
       });
-      setBriefing(text);
+
+      // Extract AI targets JSON block
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        try {
+          const targets = JSON.parse(jsonMatch[1]);
+          if (targets.calories && targets.protein && targets.carbs && targets.fat) {
+            updateDay({ aiTargets: targets });
+          }
+        } catch {}
+      }
+
+      // Strip the JSON block from displayed text
+      const cleanText = text.replace(/```json[\s\S]*?```/g, "").trim();
+      setBriefing(cleanText);
       setGeneratedAt(new Date().toLocaleTimeString("en-DE", { hour: "2-digit", minute: "2-digit" }));
     } catch (e) {
       setError("Could not generate briefing: " + e.message);

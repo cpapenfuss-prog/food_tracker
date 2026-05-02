@@ -452,18 +452,28 @@ function BodyLogger({ dayData, updateDay }) {
 }
 
 // ── Main log view ─────────────────────────────────────────────────────────────
-export default function LogView({ dayData, updateDay, apiKey }) {
+export default function LogView({ dayData, updateDay, apiKey, isToday, dateView }) {
   const [section, setSection] = useState("food");
   const tabs = [["food", "Food"], ["workout", "Workout"], ["walk", "Walk"], ["whoop", "WHOOP"], ["body", "Body"]];
 
   return (
     <div>
-      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 8, padding: 3, marginBottom: 16 }}>
+      {!isToday && (
+        <div style={{
+          marginBottom: 12, padding: "8px 12px", background: COLORS.amberLight,
+          border: `1px solid ${COLORS.amber}44`, borderRadius: 10,
+          fontSize: 12, color: COLORS.amber, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          ✎ Editing past day — all changes save immediately
+        </div>
+      )}
+      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 10, padding: 4, marginBottom: 14, border: `1px solid ${COLORS.border}` }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setSection(id)} style={{
             flex: 1, background: section === id ? COLORS.accent : "none",
-            color: section === id ? "#000" : COLORS.textDim,
-            border: "none", borderRadius: 6, padding: "7px 4px",
+            color: section === id ? "#fff" : COLORS.textDim,
+            border: "none", borderRadius: 8, padding: "7px 4px",
             fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
             whiteSpace: "nowrap",
           }}>{label}</button>
