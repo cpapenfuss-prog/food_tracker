@@ -48,7 +48,8 @@ export default function App() {
 
   const workoutBurn = dayData.workout?.calories || 0;
   const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
-  const plannedBurn = dayData.planned?.burn || 0;
+  // Once a real workout is logged, planned burn is ignored — actual overrides plan
+  const plannedBurn = dayData.workout ? 0 : (dayData.planned?.burn || 0);
   const totalBurn = workoutBurn + walkBurn;
   const projectedBurn = totalBurn + plannedBurn;
 
