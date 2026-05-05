@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { COLORS, Card, SectionTitle, Label, Input, primaryBtn, ghostBtn, chipBtn, StatMini, feelColor, feelColor2 } from "./shared.jsx";
+import MealTemplates, { addTemplate } from "./MealTemplates.jsx";
 
 // ── API call — handles text only, image only, or both ─────────────────────────
 async function estimateMeal(description, apiKey, imageBase64 = null, imageType = "image/jpeg") {
@@ -134,6 +135,11 @@ function MealLog({ meals, updateDay }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 <span style={{ fontFamily: "monospace", color: COLORS.accent, fontSize: 13 }}>{m.calories}</span>
                 <button onClick={() => startEdit(i)} style={{ background: "none", border: "none", color: COLORS.textDim, cursor: "pointer", fontSize: 13, padding: "2px 4px" }}>✎</button>
+                <button
+                  onClick={() => addTemplate(m)}
+                  title="Save as favourite"
+                  style={{ background: "none", border: "none", color: COLORS.amber, cursor: "pointer", fontSize: 13, padding: "2px 4px", opacity: 0.7 }}
+                >⭐</button>
                 <button onClick={() => deleteEntry(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
               </div>
             </div>
@@ -293,6 +299,15 @@ function FoodLogger({ dayData, updateDay, apiKey }) {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={add} style={{ ...primaryBtn, flex: 1 }}>Add to log</button>
+            <button
+              onClick={() => { addTemplate(preview); add(); }}
+              title="Save to favourites and add to log"
+              style={{
+                background: COLORS.amberLight, border: `1px solid ${COLORS.amber}55`,
+                color: COLORS.amber, borderRadius: 10, padding: "12px 14px",
+                fontSize: 14, fontWeight: 700, cursor: "pointer",
+              }}
+            >⭐</button>
             <button onClick={() => setPreview(null)} style={ghostBtn}>✕</button>
           </div>
         </Card>
@@ -454,7 +469,7 @@ function BodyLogger({ dayData, updateDay }) {
 // ── Main log view ─────────────────────────────────────────────────────────────
 export default function LogView({ dayData, updateDay, apiKey, isToday, dateView }) {
   const [section, setSection] = useState("food");
-  const tabs = [["food", "Food"], ["workout", "Workout"], ["walk", "Walk"], ["whoop", "WHOOP"], ["body", "Body"]];
+  const tabs = [["food", "Food"], ["favourites", "⭐ Saved"], ["workout", "Workout"], ["walk", "Walk"], ["whoop", "WHOOP"], ["body", "Body"]];
 
   return (
     <div>
@@ -468,18 +483,19 @@ export default function LogView({ dayData, updateDay, apiKey, isToday, dateView 
           ✎ Editing past day — all changes save immediately
         </div>
       )}
-      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 10, padding: 4, marginBottom: 14, border: `1px solid ${COLORS.border}` }}>
+      <div style={{ display: "flex", background: COLORS.surfaceHigh, borderRadius: 10, padding: 4, marginBottom: 14, border: `1px solid ${COLORS.border}`, overflowX: "auto", gap: 2 }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setSection(id)} style={{
-            flex: 1, background: section === id ? COLORS.accent : "none",
+            flexShrink: 0, background: section === id ? COLORS.accent : "none",
             color: section === id ? "#fff" : COLORS.textDim,
-            border: "none", borderRadius: 8, padding: "7px 4px",
+            border: "none", borderRadius: 8, padding: "7px 10px",
             fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
             whiteSpace: "nowrap",
           }}>{label}</button>
         ))}
       </div>
       {section === "food" && <FoodLogger dayData={dayData} updateDay={updateDay} apiKey={apiKey} />}
+      {section === "favourites" && <MealTemplates dayData={dayData} updateDay={updateDay} />}
       {section === "workout" && <WorkoutLogger dayData={dayData} updateDay={updateDay} />}
       {section === "walk" && <WalkLogger dayData={dayData} updateDay={updateDay} />}
       {section === "whoop" && <WhoopLogger dayData={dayData} updateDay={updateDay} />}
