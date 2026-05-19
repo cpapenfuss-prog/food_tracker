@@ -1,16 +1,34 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
 
-export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, projectedTargets, totalBurn, plannedBurn, settings, dayDescription, aiTargets, isToday }) {
+export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, projectedTargets, totalBurn, plannedBurn, settings, dayDescription, aiTargets, isToday, dynamicBaseline: db }) {
   const activeTargets = plannedBurn > 0 ? projectedTargets : dynamicTargets;
   const calPct = Math.min((totals.calories / activeTargets.calories) * 100, 100);
   const isUnder = calorieGap >= 0;
   const gapColor = Math.abs(calorieGap) < 150 ? COLORS.green : isUnder ? COLORS.accent : COLORS.red;
   const gapLabel = isUnder ? `${fmt(calorieGap)} under` : `${fmt(Math.abs(calorieGap))} over`;
-
   const ringColor = calPct > 100 ? COLORS.red : calPct > 85 ? COLORS.amber : COLORS.accent;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+      {/* Dynamic baseline banner — only shown when load differs meaningfully from static */}
+      {db && Math.abs(db.delta) >= 50 && !aiTargets && (
+        <div style={{
+          padding: "10px 14px",
+          background: db.delta > 0 ? COLORS.purpleLight : COLORS.greenLight,
+          border: `1px solid ${db.delta > 0 ? COLORS.purple + "44" : COLORS.green + "44"}`,
+          borderLeft: `3px solid ${db.delta > 0 ? COLORS.purple : COLORS.green}`,
+          borderRadius: 10,
+          display: "flex", flexDirection: "column", gap: 3,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", color: db.delta > 0 ? COLORS.purple : COLORS.green }}>
+            Dynamic baseline active — {db.palLabel}
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textDim }}>
+            {db.dynamicBaseline.toLocaleString()} kcal floor &nbsp;·&nbsp; {db.delta > 0 ? "+" : ""}{db.delta} vs static &nbsp;·&nbsp; {db.avgHoursPerWeek}h/wk · {db.carbsPerKg}g/kg carbs
+          </div>
+        </div>
+      )}
 
       {/* Day description */}
       {dayDescription && (
@@ -60,7 +78,7 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
               </div>
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              <StatMini label="Base" val={settings.calories} unit="kcal" color={COLORS.textDim} />
+              <StatMini label="Base" val={db ? db.dynamicBaseline : settings.calories} unit="kcal" color={COLORS.textDim} />
               {totalBurn > 0 && <StatMini label="Burned" val={totalBurn} unit="kcal" color={COLORS.blue} />}
               {plannedBurn > 0 && <StatMini label="Planned" val={plannedBurn} unit="kcal" color={COLORS.purple} />}
             </div>
@@ -76,11 +94,16 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
       {/* Macros */}
       <Card>
         <SectionTitle>
-          Macros · {aiTargets ? "AI targets" : plannedBurn > 0 ? "projected full day" : "activity adjusted"}
+          Macros · {aiTargets ? "AI targets" : plannedBurn > 0 ? "projected full day" : "load adjusted"}
         </SectionTitle>
         <MacroBar label="Protein" val={totals.protein} target={activeTargets.protein} color={COLORS.green} />
         <MacroBar label="Carbs" val={totals.carbs} target={activeTargets.carbs} color={COLORS.accent} />
         <MacroBar label="Fat" val={totals.fat} target={activeTargets.fat} color={COLORS.purple} />
+        {db && !aiTargets && (
+          <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 4 }}>
+            Protein {db.protein}g (1.85g/kg) · Carbs {db.carbs}g ({db.carbsPerKg}g/kg) · scaled to {db.avgHoursPerWeek}h/wk load
+          </div>
+        )}
       </Card>
 
       {/* WHOOP */}

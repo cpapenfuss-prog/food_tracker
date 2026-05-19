@@ -5,6 +5,7 @@ import LogView from "./LogView.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SettingsView from "./SettingsView.jsx";
 import BriefingView from "./BriefingView.jsx";
+import { computeDynamicBaseline } from "./pmc.js";
 
 const NAV = [
   { id: "dashboard", icon: "◈", label: "Today" },
@@ -48,24 +49,26 @@ export default function App() {
 
   const workoutBurn = dayData.workout?.calories || 0;
   const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
-  // Once a real workout is logged, planned burn is ignored — actual overrides plan
   const plannedBurn = dayData.workout ? 0 : (dayData.planned?.burn || 0);
   const totalBurn = workoutBurn + walkBurn;
   const projectedBurn = totalBurn + plannedBurn;
 
-  // AI targets take priority when set; otherwise fall back to formula
+  // Dynamic baseline replaces the static floor
+  const db = computeDynamicBaseline(allData, settings, dateView);
+
+  // AI targets take priority when set; otherwise use dynamic baseline
   const aiTargets = dayData.aiTargets || null;
   const dynamicTargets = aiTargets || {
-    calories: settings.calories + totalBurn,
-    protein: settings.protein,
-    carbs: settings.carbs + Math.round(totalBurn / 4),
-    fat: settings.fat,
+    calories: db.dynamicBaseline + totalBurn,
+    protein: db.protein,
+    carbs: db.carbs + Math.round(totalBurn / 4), // extra carbs for actual burn
+    fat: db.fat,
   };
   const projectedTargets = aiTargets || {
-    calories: settings.calories + projectedBurn,
-    protein: settings.protein,
-    carbs: settings.carbs + Math.round(projectedBurn / 4),
-    fat: settings.fat,
+    calories: db.dynamicBaseline + projectedBurn,
+    protein: db.protein,
+    carbs: db.carbs + Math.round(projectedBurn / 4),
+    fat: db.fat,
   };
 
   const calorieGap = (plannedBurn > 0 ? projectedTargets.calories : dynamicTargets.calories) - totals.calories;
@@ -130,6 +133,7 @@ export default function App() {
             totalBurn={totalBurn} plannedBurn={plannedBurn}
             settings={settings} dayDescription={dayData.dayDescription}
             aiTargets={aiTargets} isToday={isToday}
+            dynamicBaseline={db}
           />
         )}
         {tab === "log" && (

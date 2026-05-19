@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { COLORS, Card, SectionTitle, Label, Input, primaryBtn } from "./shared.jsx";
 
-export default function SettingsView({ settings, onSave }) {
+export default function SettingsView({ settings, onSave, allData }) {
   const [form, setForm] = useState({ ...settings });
   const [saved, setSaved] = useState(false);
 
@@ -20,29 +20,48 @@ export default function SettingsView({ settings, onSave }) {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  const rmr = Math.round(Number(form.calories) / 1.55);
+  const bw = Number(form.weight) || 80;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
       <Card>
         <SectionTitle>Baseline nutrition targets</SectionTitle>
         <div style={{ fontSize: 12, color: COLORS.textDim, marginBottom: 14, lineHeight: 1.6 }}>
-          These are your sedentary baselines. The app automatically adjusts targets upward based on workouts and walking.
+          The <strong>static baseline</strong> is used only as an <strong>RMR anchor</strong> for the dynamic load model
+          (RMR = baseline ÷ 1.55). The app adjusts all daily targets automatically based on your
+          rolling 7-day training load and single-day workout burn — you never need to touch these manually.
         </div>
         <div style={{ marginBottom: 12 }}>
-          <Label>Daily calories (sedentary baseline)</Label>
+          <Label>Daily calories — sedentary baseline (RMR anchor)</Label>
           <Input value={form.calories} onChange={v => set("calories", v)} placeholder="2200" type="number" />
+          <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
+            Implied RMR: {rmr.toLocaleString()} kcal/day
+          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 4 }}>
-          <div><Label>Protein (g)</Label><Input value={form.protein} onChange={v => set("protein", v)} placeholder="180" type="number" /></div>
-          <div><Label>Carbs (g)</Label><Input value={form.carbs} onChange={v => set("carbs", v)} placeholder="200" type="number" /></div>
-          <div><Label>Fat (g)</Label><Input value={form.fat} onChange={v => set("fat", v)} placeholder="70" type="number" /></div>
+          <div><Label>Protein (g) fallback</Label><Input value={form.protein} onChange={v => set("protein", v)} placeholder="180" type="number" /></div>
+          <div><Label>Carbs (g) fallback</Label><Input value={form.carbs} onChange={v => set("carbs", v)} placeholder="200" type="number" /></div>
+          <div><Label>Fat (g) fallback</Label><Input value={form.fat} onChange={v => set("fat", v)} placeholder="70" type="number" /></div>
+        </div>
+        <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
+          Fallback values only used if dynamic calculation fails. Dynamic macros are computed from bodyweight below.
         </div>
       </Card>
 
       <Card>
         <SectionTitle>Body</SectionTitle>
-        <Label>Weight (kg) — used for burn estimates</Label>
+        <Label>Bodyweight (kg) — used for macro targets and burn estimates</Label>
         <Input value={form.weight} onChange={v => set("weight", v)} placeholder="82" type="number" step="0.1" />
+        {bw > 0 && (
+          <div style={{ marginTop: 10, padding: "10px 12px", background: COLORS.blueLight, borderRadius: 8, fontSize: 12, color: COLORS.navy, lineHeight: 1.8 }}>
+            <strong>Dynamic macro targets at {bw} kg:</strong><br />
+            Protein: {Math.round(bw * 1.85)}g (1.85g/kg — fixed)<br />
+            Carbs: {Math.round(bw * 3)}–{Math.round(bw * 7)}g (3–7g/kg — scales with load)<br />
+            Fat floor: {Math.round(bw * 0.8)}g (0.8g/kg minimum)
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -73,24 +92,6 @@ export default function SettingsView({ settings, onSave }) {
       <button onClick={save} style={{ ...primaryBtn, width: "100%", fontSize: 15, padding: "14px" }}>
         {saved ? "✓ Saved!" : "Save settings"}
       </button>
-
-      {/* Macro calculator hint */}
-      <Card style={{ borderStyle: "dashed", background: COLORS.bg }}>
-        <SectionTitle>Macro guide</SectionTitle>
-        <div style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.8 }}>
-          <div>Protein: <strong style={{ color: COLORS.text }}>2.0–2.2 g/kg</strong> body weight</div>
-          <div>Carbs: <strong style={{ color: COLORS.text }}>3–5 g/kg</strong> on base days, scales with training</div>
-          <div>Fat: <strong style={{ color: COLORS.text }}>0.8–1.0 g/kg</strong> for hormonal health</div>
-          {form.weight > 0 && (
-            <div style={{ marginTop: 10, padding: "8px 12px", background: COLORS.blueLight, borderRadius: 8 }}>
-              <div style={{ fontWeight: 600, color: COLORS.navy, marginBottom: 4 }}>Suggested for {form.weight} kg:</div>
-              <div>Protein: {Math.round(form.weight * 2.1)}g</div>
-              <div>Carbs: {Math.round(form.weight * 4)}g (rest day)</div>
-              <div>Fat: {Math.round(form.weight * 0.9)}g</div>
-            </div>
-          )}
-        </div>
-      </Card>
     </div>
   );
 }
