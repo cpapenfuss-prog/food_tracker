@@ -74,13 +74,12 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
               </div>
               <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
                 Target: <strong style={{ color: COLORS.text }}>{fmt(activeTargets.calories)}</strong> kcal
-                {plannedBurn > 0 && <span style={{ color: COLORS.purple, marginLeft: 5, fontSize: 11 }}>projected</span>}
+                <span style={{ color: COLORS.textFaint, marginLeft: 5, fontSize: 11 }}>PAL {db ? db.pal.toFixed(2) : ""} · {db ? db.palLabel : ""}</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              <StatMini label="Base" val={db ? db.dynamicBaseline : settings.calories} unit="kcal" color={COLORS.textDim} />
-              {totalBurn > 0 && <StatMini label="Burned" val={totalBurn} unit="kcal" color={COLORS.blue} />}
-              {plannedBurn > 0 && <StatMini label="Planned" val={plannedBurn} unit="kcal" color={COLORS.purple} />}
+              <StatMini label="Target" val={db ? db.dynamicBaseline : settings.calories} unit="kcal" color={COLORS.textDim} />
+              <StatMini label="PAL" val={db ? db.pal.toFixed(2) : "1.55"} color={COLORS.purple} />
             </div>
             {plannedBurn > 0 && dayData.planned?.type && (
               <div style={{ marginTop: 6, fontSize: 10, color: COLORS.textFaint }}>

@@ -56,18 +56,20 @@ export default function App() {
   // Dynamic baseline replaces the static floor
   const db = computeDynamicBaseline(allData, settings, dateView);
 
-  // AI targets take priority when set; otherwise use dynamic baseline
+  // AI targets take priority when set; otherwise use dynamic baseline.
+  // NOTE: dynamicBaseline is a PAL-based TDEE that already accounts for training
+  // load — workout calories must NOT be added on top (that would double-count).
   const aiTargets = dayData.aiTargets || null;
   const dynamicTargets = aiTargets || {
-    calories: db.dynamicBaseline + totalBurn,
+    calories: db.dynamicBaseline,
     protein: db.protein,
-    carbs: db.carbs + Math.round(totalBurn / 4), // extra carbs for actual burn
+    carbs: db.carbs,
     fat: db.fat,
   };
   const projectedTargets = aiTargets || {
-    calories: db.dynamicBaseline + projectedBurn,
+    calories: db.dynamicBaseline,
     protein: db.protein,
-    carbs: db.carbs + Math.round(projectedBurn / 4),
+    carbs: db.carbs,
     fat: db.fat,
   };
 
