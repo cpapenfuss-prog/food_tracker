@@ -113,8 +113,8 @@ export function computeDynamicBaseline(allData, settings, referenceKey) {
   const workoutKcal = todayData.workout?.calories || 0;
   const walkKcal = Math.round((todayData.walk?.minutes || 0) * 4.5);
 
-  // 5. Base target: RMR × 1.2 + walk (no workout, no load premium)
-  const baseTarget = Math.round(rmr * 1.2) + walkKcal;
+  // 5. Base target: RMR × 1.15 (bare daily overhead, no movement assumed) + walk explicit
+  const baseTarget = Math.round(rmr * 1.15) + walkKcal;
 
   // 6. Adjusted target: base + workout + load premium
   const adjustedTarget = baseTarget + workoutKcal + loadPremium;

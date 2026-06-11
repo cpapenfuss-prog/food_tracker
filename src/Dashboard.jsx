@@ -81,7 +81,7 @@ export default function Dashboard({ dayData, totals, calorieGap, baseTargets, ad
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy }}>Base target</div>
               <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
-                RMR {db ? fmt(db.rmr) : "—"} × 1.2
+                RMR {db ? fmt(db.rmr) : "—"} × 1.15
                 {db?.walkKcal > 0 && ` + ${fmt(db.walkKcal)} walk`}
               </div>
             </div>

@@ -26,7 +26,7 @@ export default function SettingsView({ settings, onSave, allData }) {
   const rmrDisplay = form.rmr
     ? Number(form.rmr)
     : Math.round(Number(form.calories) / 1.55);
-  const baseTarget = Math.round(rmrDisplay * 1.2);
+  const baseTarget = Math.round(rmrDisplay * 1.15);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -41,7 +41,7 @@ export default function SettingsView({ settings, onSave, allData }) {
         <Label>Measured RMR (kcal/day)</Label>
         <Input value={form.rmr || ""} onChange={v => set("rmr", v)} placeholder="e.g. 2150" type="number" />
         <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
-          Base daily target (RMR × 1.2): <strong>{baseTarget.toLocaleString()} kcal</strong>
+          Base daily target (RMR × 1.15): <strong>{baseTarget.toLocaleString()} kcal</strong>
         </div>
       </Card>
 
