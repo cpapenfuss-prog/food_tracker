@@ -47,33 +47,30 @@ export default function App() {
     fat: acc.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
-  const workoutBurn = dayData.workout?.calories || 0;
-  const walkBurn = Math.round((dayData.walk?.minutes || 0) * 4.5);
-  const plannedBurn = dayData.workout ? 0 : (dayData.planned?.burn || 0);
-  const totalBurn = workoutBurn + walkBurn;
-  const projectedBurn = totalBurn + plannedBurn;
-
-  // Dynamic baseline replaces the static floor
+  // Compute both base and adjusted targets via pmc engine
   const db = computeDynamicBaseline(allData, settings, dateView);
 
-  // AI targets take priority when set; otherwise use dynamic baseline.
-  // NOTE: dynamicBaseline is a PAL-based TDEE that already accounts for training
-  // load — workout calories must NOT be added on top (that would double-count).
+  // AI targets take priority when set by the briefing
   const aiTargets = dayData.aiTargets || null;
-  const dynamicTargets = aiTargets || {
-    calories: db.dynamicBaseline,
-    protein: db.protein,
-    carbs: db.carbs,
-    fat: db.fat,
-  };
-  const projectedTargets = aiTargets || {
-    calories: db.dynamicBaseline,
+
+  // Base target: RMR × 1.2 + walk — no workout, no load premium
+  const baseTargets = aiTargets || {
+    calories: db.baseTarget,
     protein: db.protein,
     carbs: db.carbs,
     fat: db.fat,
   };
 
-  const calorieGap = (plannedBurn > 0 ? projectedTargets.calories : dynamicTargets.calories) - totals.calories;
+  // Adjusted target: base + workout kcal + 7-day load premium
+  const adjustedTargets = aiTargets || {
+    calories: db.adjustedTarget,
+    protein: db.protein,
+    carbs: db.carbs,
+    fat: db.fat,
+  };
+
+  // Gap always shown against adjusted target
+  const calorieGap = adjustedTargets.calories - totals.calories;
 
   function shiftDate(delta) {
     const d = new Date(dateView + "T12:00:00");
@@ -131,8 +128,7 @@ export default function App() {
         {tab === "dashboard" && (
           <Dashboard
             dayData={dayData} totals={totals} calorieGap={calorieGap}
-            dynamicTargets={dynamicTargets} projectedTargets={projectedTargets}
-            totalBurn={totalBurn} plannedBurn={plannedBurn}
+            baseTargets={baseTargets} adjustedTargets={adjustedTargets}
             settings={settings} dayDescription={dayData.dayDescription}
             aiTargets={aiTargets} isToday={isToday}
             dynamicBaseline={db}

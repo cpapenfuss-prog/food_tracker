@@ -57,18 +57,28 @@ export function computePMC(allData) {
 }
 
 // ── Dynamic Baseline Engine ───────────────────────────────────────────────────
-// Derives RMR from the static baseline (settings.calories / 1.55),
-// then multiplies by a PAL factor from rolling 7-day training hours.
+// Formula:
+//   Base target     = RMR × 1.2 + walk kcal
+//   Adjusted target = RMR × 1.2 + walk kcal + workout kcal + 7-day load premium
 //
-// Sources:
-//   PAL scale:  WHO/FAO/UNU (2001)
-//   Protein:    Thomas et al., Academy of Nutrition and Dietetics (2016) — 1.85 g/kg fixed
-//   Carbs:      Jeukendrup & Burke, Sports Nutrition (2011) — 3–7 g/kg scaled with load
-//   Fat:        fills remainder, floor 0.8 g/kg for hormonal health
+// RMR source priority: settings.rmr (measured) → settings.calories / 1.55 (back-calculated)
+//
+// 7-day load premium is an additive recovery overhead that keeps the floor
+// elevated on rest days during heavy training blocks, accounting for:
+//   - Elevated post-exercise RMR (Torstveit et al.)
+//   - Ongoing glycogen resynthesis (Burke & Hawley)
+//   - EPOC tail from sustained endurance efforts
+//
+// Macros:
+//   Protein: Thomas et al. (2016) — 1.85 g/kg fixed
+//   Carbs:   Jeukendrup & Burke (2011) — 3–7 g/kg scaled with 7-day load
+//   Fat:     fills remainder, floor 0.8 g/kg for hormonal health
 
 export function computeDynamicBaseline(allData, settings, referenceKey) {
-  // 1. RMR anchor
-  const rmr = settings.calories / 1.55;
+  // 1. RMR — use measured value if available, otherwise back-calculate
+  const rmr = settings.rmr
+    ? Number(settings.rmr)
+    : Math.round(Number(settings.calories) / 1.55);
 
   // 2. Rolling 7-day training hours (days before referenceKey)
   let totalHours = 0;
@@ -90,20 +100,29 @@ export function computeDynamicBaseline(allData, settings, referenceKey) {
 
   const avgHoursPerWeek = totalHours; // 7-day total = weekly average
 
-  // 3. PAL lookup (WHO/FAO/UNU 2001)
-  let pal, palLabel;
-  if (avgHoursPerWeek < 3)       { pal = 1.40; palLabel = "Sedentary / Light"; }
-  else if (avgHoursPerWeek < 6)  { pal = 1.55; palLabel = "Moderately Active"; }
-  else if (avgHoursPerWeek < 8)  { pal = 1.65; palLabel = "Active"; }
-  else if (avgHoursPerWeek < 10) { pal = 1.725; palLabel = "Very Active"; }
-  else if (avgHoursPerWeek < 14) { pal = 1.80; palLabel = "Extremely Active"; }
-  else                           { pal = 1.90; palLabel = "Elite Load"; }
+  // 3. 7-day load premium (additive recovery overhead)
+  let loadPremium, loadPremiumLabel;
+  if (avgHoursPerWeek < 3)        { loadPremium = 0;   loadPremiumLabel = "No premium"; }
+  else if (avgHoursPerWeek < 6)   { loadPremium = 100; loadPremiumLabel = "Light block"; }
+  else if (avgHoursPerWeek < 9)   { loadPremium = 150; loadPremiumLabel = "Moderate block"; }
+  else if (avgHoursPerWeek < 12)  { loadPremium = 200; loadPremiumLabel = "Heavy block"; }
+  else                            { loadPremium = 250; loadPremiumLabel = "Peak block"; }
 
-  // 4. Dynamic TDEE
-  const dynamicBaseline = Math.round(rmr * pal);
-  const delta = dynamicBaseline - settings.calories;
+  // 4. Today's actual burn
+  const todayData = allData[referenceKey] || {};
+  const workoutKcal = todayData.workout?.calories || 0;
+  const walkKcal = Math.round((todayData.walk?.minutes || 0) * 4.5);
 
-  // 5. Macro targets
+  // 5. Base target: RMR × 1.2 + walk (no workout, no load premium)
+  const baseTarget = Math.round(rmr * 1.2) + walkKcal;
+
+  // 6. Adjusted target: base + workout + load premium
+  const adjustedTarget = baseTarget + workoutKcal + loadPremium;
+
+  // 7. Delta between adjusted and base
+  const delta = adjustedTarget - baseTarget;
+
+  // 8. Macro targets (based on adjusted target)
   const bw = settings.weight || 80;
   const protein = Math.round(bw * 1.85);
 
@@ -116,15 +135,26 @@ export function computeDynamicBaseline(allData, settings, referenceKey) {
   else                           carbsPerKg = 7.0;
   const carbs = Math.round(bw * carbsPerKg);
 
-  const remainingKcal = dynamicBaseline - (protein * 4) - (carbs * 4);
+  const remainingKcal = adjustedTarget - (protein * 4) - (carbs * 4);
   const fat = Math.max(Math.round(remainingKcal / 9), Math.round(bw * 0.8));
 
   return {
-    rmr: Math.round(rmr), pal, palLabel,
+    rmr,
+    baseTarget,
+    adjustedTarget,
+    delta,
+    workoutKcal,
+    walkKcal,
+    loadPremium,
+    loadPremiumLabel,
     avgHoursPerWeek: Math.round(avgHoursPerWeek * 10) / 10,
-    totalTSS, dynamicBaseline,
-    staticBaseline: settings.calories, delta,
-    protein, carbs, fat,
+    totalTSS,
+    // legacy fields kept for any other components that reference them
+    dynamicBaseline: adjustedTarget,
+    staticBaseline: settings.calories,
+    protein,
+    carbs,
+    fat,
     carbsPerKg: Math.round(carbsPerKg * 10) / 10,
     dailyBreakdown,
   };

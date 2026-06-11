@@ -1,34 +1,21 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
 
-export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets, projectedTargets, totalBurn, plannedBurn, settings, dayDescription, aiTargets, isToday, dynamicBaseline: db }) {
-  const activeTargets = plannedBurn > 0 ? projectedTargets : dynamicTargets;
-  const calPct = Math.min((totals.calories / activeTargets.calories) * 100, 100);
+export default function Dashboard({ dayData, totals, calorieGap, baseTargets, adjustedTargets, settings, dayDescription, aiTargets, isToday, dynamicBaseline: db }) {
+
+  // Ring and gap track against adjusted target
+  const calPct = Math.min((totals.calories / adjustedTargets.calories) * 100, 100);
   const isUnder = calorieGap >= 0;
   const gapColor = Math.abs(calorieGap) < 150 ? COLORS.green : isUnder ? COLORS.accent : COLORS.red;
   const gapLabel = isUnder ? `${fmt(calorieGap)} under` : `${fmt(Math.abs(calorieGap))} over`;
   const ringColor = calPct > 100 ? COLORS.red : calPct > 85 ? COLORS.amber : COLORS.accent;
 
+  // Delta breakdown for display
+  const workoutDelta = db?.workoutKcal || 0;
+  const loadDelta = db?.loadPremium || 0;
+  const hasDelta = (workoutDelta + loadDelta) > 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-      {/* Dynamic baseline banner — only shown when load differs meaningfully from static */}
-      {db && Math.abs(db.delta) >= 50 && !aiTargets && (
-        <div style={{
-          padding: "10px 14px",
-          background: db.delta > 0 ? COLORS.purpleLight : COLORS.greenLight,
-          border: `1px solid ${db.delta > 0 ? COLORS.purple + "44" : COLORS.green + "44"}`,
-          borderLeft: `3px solid ${db.delta > 0 ? COLORS.purple : COLORS.green}`,
-          borderRadius: 10,
-          display: "flex", flexDirection: "column", gap: 3,
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", color: db.delta > 0 ? COLORS.purple : COLORS.green }}>
-            Dynamic baseline active — {db.palLabel}
-          </div>
-          <div style={{ fontSize: 12, color: COLORS.textDim }}>
-            {db.dynamicBaseline.toLocaleString()} kcal floor &nbsp;·&nbsp; {db.delta > 0 ? "+" : ""}{db.delta} vs static &nbsp;·&nbsp; {db.avgHoursPerWeek}h/wk · {db.carbsPerKg}g/kg carbs
-          </div>
-        </div>
-      )}
 
       {/* Day description */}
       {dayDescription && (
@@ -73,34 +60,92 @@ export default function Dashboard({ dayData, totals, calorieGap, dynamicTargets,
                 {gapLabel}
               </div>
               <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
-                Target: <strong style={{ color: COLORS.text }}>{fmt(activeTargets.calories)}</strong> kcal
-                <span style={{ color: COLORS.textFaint, marginLeft: 5, fontSize: 11 }}>PAL {db ? db.pal.toFixed(2) : ""} · {db ? db.palLabel : ""}</span>
+                vs adjusted <strong style={{ color: COLORS.text }}>{fmt(adjustedTargets.calories)}</strong> kcal
               </div>
             </div>
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              <StatMini label="Target" val={db ? db.dynamicBaseline : settings.calories} unit="kcal" color={COLORS.textDim} />
-              <StatMini label="PAL" val={db ? db.pal.toFixed(2) : "1.55"} color={COLORS.purple} />
-            </div>
-            {plannedBurn > 0 && dayData.planned?.type && (
-              <div style={{ marginTop: 6, fontSize: 10, color: COLORS.textFaint }}>
-                {dayData.planned.type} planned
-              </div>
-            )}
           </div>
         </div>
       </Card>
 
+      {/* Target breakdown — base vs adjusted */}
+      {!aiTargets && (
+        <Card>
+          <SectionTitle>Daily targets</SectionTitle>
+
+          {/* Base target row */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "10px 0",
+            borderBottom: `1px solid ${COLORS.border}`,
+          }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy }}>Base target</div>
+              <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
+                RMR {db ? fmt(db.rmr) : "—"} × 1.2
+                {db?.walkKcal > 0 && ` + ${fmt(db.walkKcal)} walk`}
+              </div>
+            </div>
+            <div style={{ fontFamily: "monospace", fontSize: 17, fontWeight: 800, color: COLORS.textDim }}>
+              {fmt(baseTargets.calories)}
+            </div>
+          </div>
+
+          {/* Adjusted target row */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "10px 0",
+          }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy }}>Adjusted target</div>
+              <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 2, lineHeight: 1.7 }}>
+                {workoutDelta > 0 && <span style={{ color: COLORS.blue }}>+{fmt(workoutDelta)} workout&nbsp;&nbsp;</span>}
+                {loadDelta > 0 && <span style={{ color: COLORS.purple }}>+{fmt(loadDelta)} recovery ({db?.loadPremiumLabel})</span>}
+                {!hasDelta && <span>same as base — rest day, no load premium</span>}
+              </div>
+            </div>
+            <div style={{ fontFamily: "monospace", fontSize: 17, fontWeight: 800, color: COLORS.accent }}>
+              {fmt(adjustedTargets.calories)}
+            </div>
+          </div>
+
+          {/* Delta callout */}
+          {hasDelta && (
+            <div style={{
+              marginTop: 4,
+              padding: "8px 12px",
+              background: COLORS.blueLight,
+              borderRadius: 8,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <div style={{ fontSize: 11, color: COLORS.textDim }}>
+                Range · eat to feel
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, fontFamily: "monospace" }}>
+                {fmt(baseTargets.calories)} – {fmt(adjustedTargets.calories)} kcal
+              </div>
+            </div>
+          )}
+
+          {/* 7-day load context */}
+          {db && (
+            <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 10 }}>
+              7-day training load: {db.avgHoursPerWeek}h · {db.loadPremiumLabel}
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Macros */}
       <Card>
         <SectionTitle>
-          Macros · {aiTargets ? "AI targets" : plannedBurn > 0 ? "projected full day" : "load adjusted"}
+          Macros · {aiTargets ? "AI targets" : "load adjusted"}
         </SectionTitle>
-        <MacroBar label="Protein" val={totals.protein} target={activeTargets.protein} color={COLORS.green} />
-        <MacroBar label="Carbs" val={totals.carbs} target={activeTargets.carbs} color={COLORS.accent} />
-        <MacroBar label="Fat" val={totals.fat} target={activeTargets.fat} color={COLORS.purple} />
+        <MacroBar label="Protein" val={totals.protein} target={adjustedTargets.protein} color={COLORS.green} />
+        <MacroBar label="Carbs" val={totals.carbs} target={adjustedTargets.carbs} color={COLORS.accent} />
+        <MacroBar label="Fat" val={totals.fat} target={adjustedTargets.fat} color={COLORS.purple} />
         {db && !aiTargets && (
           <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 4 }}>
-            Protein {db.protein}g (1.85g/kg) · Carbs {db.carbs}g ({db.carbsPerKg}g/kg) · scaled to {db.avgHoursPerWeek}h/wk load
+            Protein {db.protein}g (1.85g/kg) · Carbs {db.carbs}g ({db.carbsPerKg}g/kg) · {db.avgHoursPerWeek}h/wk load
           </div>
         )}
       </Card>
