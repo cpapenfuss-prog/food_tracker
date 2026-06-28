@@ -525,12 +525,12 @@ export default function LogView({ dayData, updateDay, apiKey, isToday, dateView 
           }}>{label}</button>
         ))}
       </div>
-      {section === "food" && <FoodLogger dayData={dayData} updateDay={updateDay} apiKey={apiKey} />}
-      {section === "favourites" && <MealTemplates dayData={dayData} updateDay={updateDay} />}
-      {section === "workout" && <WorkoutLogger dayData={dayData} updateDay={updateDay} />}
-      {section === "walk" && <WalkLogger dayData={dayData} updateDay={updateDay} />}
-      {section === "whoop" && <WhoopLogger dayData={dayData} updateDay={updateDay} />}
-      {section === "body" && <BodyLogger dayData={dayData} updateDay={updateDay} />}
+      {section === "food" && <FoodLogger key={dateView} dayData={dayData} updateDay={updateDay} apiKey={apiKey} />}
+      {section === "favourites" && <MealTemplates key={dateView} dayData={dayData} updateDay={updateDay} />}
+      {section === "workout" && <WorkoutLogger key={dateView} dayData={dayData} updateDay={updateDay} />}
+      {section === "walk" && <WalkLogger key={dateView} dayData={dayData} updateDay={updateDay} />}
+      {section === "whoop" && <WhoopLogger key={dateView} dayData={dayData} updateDay={updateDay} />}
+      {section === "body" && <BodyLogger key={dateView} dayData={dayData} updateDay={updateDay} />}
     </div>
   );
 }
