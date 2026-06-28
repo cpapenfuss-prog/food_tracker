@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { COLORS, Card, SectionTitle, Label, Input, primaryBtn } from "./shared.jsx";
 
+const LB_PER_KG = 2.2046226218;
+
 export default function SettingsView({ settings, onSave, allData }) {
   const [form, setForm] = useState({ ...settings });
   const [saved, setSaved] = useState(false);
 
+  // Weight is entered in lbs but stored canonically in kg (everything downstream
+  // — pmc.js, macro table, history — reads kg). Seed the field from stored kg.
+  const [weightLb, setWeightLb] = useState(
+    settings.weight ? (Number(settings.weight) * LB_PER_KG).toFixed(1) : ""
+  );
+
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); }
+
+  const bwKg = Number(weightLb) ? Number(weightLb) / LB_PER_KG : (Number(form.weight) || 80);
 
   function save() {
     onSave({
@@ -15,13 +25,13 @@ export default function SettingsView({ settings, onSave, allData }) {
       protein: Number(form.protein),
       carbs: Number(form.carbs),
       fat: Number(form.fat),
-      weight: Number(form.weight),
+      // store kg, rounded to 2 dp; fall back to existing value if field is blank
+      weight: weightLb ? Number((Number(weightLb) / LB_PER_KG).toFixed(2)) : Number(form.weight),
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const bw = Number(form.weight) || 80;
   // RMR display: measured value takes priority, otherwise back-calculate
   const rmrDisplay = form.rmr
     ? Number(form.rmr)
@@ -71,14 +81,17 @@ export default function SettingsView({ settings, onSave, allData }) {
 
       <Card>
         <SectionTitle>Body</SectionTitle>
-        <Label>Bodyweight (kg) — used for macro targets</Label>
-        <Input value={form.weight} onChange={v => set("weight", v)} placeholder="82" type="number" step="0.1" />
-        {bw > 0 && (
+        <Label>Bodyweight (lbs) — used for macro targets</Label>
+        <Input value={weightLb} onChange={setWeightLb} placeholder="180" type="number" step="0.1" />
+        <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
+          = {bwKg.toFixed(1)} kg (stored internally for all calculations)
+        </div>
+        {bwKg > 0 && (
           <div style={{ marginTop: 10, padding: "10px 12px", background: COLORS.blueLight, borderRadius: 8, fontSize: 12, color: COLORS.navy, lineHeight: 1.8 }}>
-            <strong>Dynamic macro targets at {bw} kg:</strong><br />
-            Protein: {Math.round(bw * 1.85)}g (1.85g/kg — fixed)<br />
-            Carbs: {Math.round(bw * 3)}–{Math.round(bw * 7)}g (3–7g/kg — scales with load)<br />
-            Fat floor: {Math.round(bw * 0.8)}g (0.8g/kg minimum)
+            <strong>Effort-based macro targets at {Math.round(bwKg)} kg:</strong><br />
+            Protein: {Math.round(bwKg * 1.6)}–{Math.round(bwKg * 2.2)}g (1.6–2.2 g/kg by effort)<br />
+            Carbs: {Math.round(bwKg * 3)}–{Math.round(bwKg * 9)}g (3–9 g/kg by effort)<br />
+            Fat: {Math.round(bwKg * 0.8)}–{Math.round(bwKg * 1.4)}g (0.8–1.4 g/kg by effort)
           </div>
         )}
       </Card>

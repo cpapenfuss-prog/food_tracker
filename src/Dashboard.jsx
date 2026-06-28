@@ -1,6 +1,7 @@
 import { COLORS, Card, SectionTitle, StatMini, RecoveryDot, MacroBar, fmt, feelColor, feelColor2 } from "./shared.jsx";
+import { bodyBatteryStatus } from "./bodyBattery.js";
 
-export default function Dashboard({ dayData, totals, calorieGap, baseTargets, adjustedTargets, settings, dayDescription, aiTargets, isToday, dynamicBaseline: db }) {
+export default function Dashboard({ dayData, totals, calorieGap, baseTargets, adjustedTargets, settings, dayDescription, aiTargets, isToday, dynamicBaseline: db, effortTier, effortKcal }) {
 
   // Ring and gap track against adjusted target
   const calPct = Math.min((totals.calories / adjustedTargets.calories) * 100, 100);
@@ -13,6 +14,8 @@ export default function Dashboard({ dayData, totals, calorieGap, baseTargets, ad
   const workoutDelta = db?.workoutKcal || 0;
   const loadDelta = db?.loadPremium || 0;
   const hasDelta = (workoutDelta + loadDelta) > 0;
+
+  const bb = dayData.whoop?.bodyBattery;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -138,14 +141,15 @@ export default function Dashboard({ dayData, totals, calorieGap, baseTargets, ad
       {/* Macros */}
       <Card>
         <SectionTitle>
-          Macros · {aiTargets ? "AI targets" : "load adjusted"}
+          Macros · {aiTargets ? "AI targets" : effortTier ? `${effortTier.label} day` : "load adjusted"}
         </SectionTitle>
         <MacroBar label="Protein" val={totals.protein} target={adjustedTargets.protein} color={COLORS.green} />
         <MacroBar label="Carbs" val={totals.carbs} target={adjustedTargets.carbs} color={COLORS.accent} />
         <MacroBar label="Fat" val={totals.fat} target={adjustedTargets.fat} color={COLORS.purple} />
-        {db && !aiTargets && (
-          <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 4 }}>
-            Protein {db.protein}g (1.85g/kg) · Carbs {db.carbs}g ({db.carbsPerKg}g/kg) · {db.avgHoursPerWeek}h/wk load
+        {effortTier && !aiTargets && (
+          <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 4, lineHeight: 1.6 }}>
+            {effortTier.label} · P {effortTier.protein} · C {effortTier.carb} · F {effortTier.fat} g/kg
+            {effortKcal ? ` · ~${fmt(effortKcal)} kcal from macros vs ${fmt(adjustedTargets.calories)} target` : ""}
           </div>
         )}
       </Card>
@@ -160,6 +164,9 @@ export default function Dashboard({ dayData, totals, calorieGap, baseTargets, ad
               <StatMini label="HRV" val={dayData.whoop.hrv} unit="ms" color={COLORS.blue} />
               <StatMini label="RHR" val={dayData.whoop.rhr} unit="bpm" color={COLORS.purple} />
               <StatMini label="Sleep" val={dayData.whoop.sleep} unit="h" color={COLORS.textDim} />
+              {bb != null && (
+                <StatMini label="Body Batt" val={bb} unit="/100" color={bodyBatteryStatus(bb).color} />
+              )}
             </div>
           </div>
         </Card>

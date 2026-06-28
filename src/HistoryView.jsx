@@ -1,4 +1,5 @@
 import { COLORS, Card, SectionTitle, RecoveryDot } from "./shared.jsx";
+import { bodyBatteryBand } from "./bodyBattery.js";
 
 // ── HRCV colour scale ─────────────────────────────────────────────────────────
 function hrcvColor(pct) {
@@ -12,6 +13,21 @@ function hrcvLabel(pct) {
   if (pct < 10) return "Elite";
   if (pct <= 20) return "Solid";
   return "Be careful";
+}
+
+// ── Body Battery colour scale ─────────────────────────────────────────────────
+// Thresholds live in bodyBattery.js (band keys); palette mapped to app COLORS
+// here so the chart matches the HRV/HRCV panels.
+const BB_PALETTE = {
+  low: COLORS.red, moderate: COLORS.amber, good: COLORS.green, charged: COLORS.accent,
+};
+function bbColor(v) {
+  const b = bodyBatteryBand(v);
+  return b ? BB_PALETTE[b.key] : COLORS.textFaint;
+}
+function bbLabel(v) {
+  const b = bodyBatteryBand(v);
+  return b ? b.label : "—";
 }
 
 // ── Stats helpers ─────────────────────────────────────────────────────────────
@@ -161,6 +177,94 @@ function HRCVBadge({ pct }) {
   );
 }
 
+// ── Body Battery chart (fixed 0–100 axis) ─────────────────────────────────────
+function BodyBatteryChart({ bbDays }) {
+  const W = 320, H = 80;
+  const n = bbDays.length;
+  const toX = i => n === 1 ? W / 2 : (i / (n - 1)) * W;
+  const toY = v => H - (v / 100) * H; // fixed 0–100 scale, no autoscaling
+  const vals = bbDays.map(d => d.bb);
+  const pts = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+  const y25 = toY(25), y50 = toY(50), y75 = toY(75);
+
+  const labelIdxs = n <= 4 ? bbDays.map((_, i) => i) : [0, Math.floor(n / 2), n - 1];
+  const last = vals[n - 1];
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: COLORS.accent, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4, opacity: 0.8 }}>Morning Body Battery (0–100)</div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible", display: "block" }}>
+        <defs>
+          <linearGradient id="bbGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={COLORS.accent} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={COLORS.accent} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* Zone bands: 75–100 charged, 50–75 good, 25–50 moderate, 0–25 low */}
+        <rect x="0" y={0}    width={W} height={y75}      fill={COLORS.accent} opacity="0.06" />
+        <rect x="0" y={y75}  width={W} height={y50 - y75} fill={COLORS.green}  opacity="0.06" />
+        <rect x="0" y={y50}  width={W} height={y25 - y50} fill={COLORS.amber}  opacity="0.08" />
+        <rect x="0" y={y25}  width={W} height={H - y25}    fill={COLORS.red}    opacity="0.07" />
+        {/* Zone lines */}
+        <line x1="0" y1={y50} x2={W} y2={y50} stroke={COLORS.green} strokeWidth="0.8" strokeDasharray="3,3" opacity="0.6" />
+        <line x1="0" y1={y25} x2={W} y2={y25} stroke={COLORS.red} strokeWidth="0.8" strokeDasharray="3,3" opacity="0.6" />
+        <text x={W - 2} y={Math.max(9, y50 - 3)} textAnchor="end" fontSize="8" fill={COLORS.green} opacity="0.9">50</text>
+        <text x={W - 2} y={Math.max(9, y25 - 3)} textAnchor="end" fontSize="8" fill={COLORS.red} opacity="0.9">25</text>
+        {/* Area + line */}
+        <polygon points={`${toX(0)},${H} ${pts} ${toX(n - 1)},${H}`} fill="url(#bbGrad)" />
+        <polyline points={pts} fill="none" stroke={COLORS.accent} strokeWidth="2" strokeLinejoin="round" />
+        {/* Coloured dots by band */}
+        {vals.map((v, i) => (
+          <circle key={i} cx={toX(i)} cy={toY(v)} r="3.5" fill={bbColor(v)} stroke="#fff" strokeWidth="1" />
+        ))}
+        {/* Latest label */}
+        <text x={toX(n - 1)} y={Math.max(10, toY(last) - 7)}
+          textAnchor={n === 1 ? "middle" : "end"} fontSize="9" fill={bbColor(last)} fontWeight="700" fontFamily="monospace">
+          {last}
+        </text>
+      </svg>
+
+      {/* X-axis labels */}
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: COLORS.textFaint, marginTop: 5 }}>
+        {labelIdxs.map(i => <span key={i}>{bbDays[i].date.slice(5)}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// ── Body Battery status badge ─────────────────────────────────────────────────
+function BodyBatteryBadge({ value }) {
+  const color = bbColor(value);
+  const label = bbLabel(value);
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 14px", borderRadius: 10,
+      background: color + "14", border: `1.5px solid ${color}33`,
+    }}>
+      <div style={{
+        width: 10, height: 10, borderRadius: "50%",
+        background: color, boxShadow: `0 0 6px ${color}88`, flexShrink: 0,
+      }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 2 }}>Latest morning Body Battery</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "monospace", color, lineHeight: 1 }}>
+            {value != null ? value : "—"}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+        </div>
+      </div>
+      <div style={{ fontSize: 9, color: COLORS.textFaint, textAlign: "right", lineHeight: 1.7 }}>
+        <div style={{ color: COLORS.accent }}>75+ · Charged</div>
+        <div style={{ color: COLORS.green }}>50–74 · Good</div>
+        <div style={{ color: COLORS.amber }}>25–49 · Moderate</div>
+        <div style={{ color: COLORS.red }}>{"<"}25 · Low</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Weight mini-chart (unchanged) ─────────────────────────────────────────────
 function MiniChart({ values, labels, color, unit }) {
   if (values.length < 2) return null;
@@ -228,6 +332,13 @@ export default function HistoryView({ allData, settings }) {
   const hrcvByDate = {};
   hrvDays.forEach((h, i) => { hrcvByDate[h.date] = hrcvSeries[i]; });
 
+  // Body Battery — chronological, up to 30 logged days
+  const bbDays = days
+    .filter(d => allData[d]?.whoop?.bodyBattery != null)
+    .slice(0, 30)
+    .reverse()
+    .map(d => ({ date: d, bb: allData[d].whoop.bodyBattery }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
@@ -250,6 +361,20 @@ export default function HistoryView({ allData, settings }) {
         <Card style={{ borderStyle: "dashed" }}>
           <div style={{ fontSize: 12, color: COLORS.textFaint, textAlign: "center" }}>
             Log HRV for 3+ days to see rolling HRCV trend.
+          </div>
+        </Card>
+      )}
+
+      {/* Body Battery panel */}
+      {bbDays.length >= 1 && (
+        <Card>
+          <SectionTitle>Body Battery · {bbDays.length} day{bbDays.length === 1 ? "" : "s"} logged</SectionTitle>
+          {bbDays.length >= 2 && <BodyBatteryChart bbDays={bbDays} />}
+          <div style={{ marginTop: bbDays.length >= 2 ? 14 : 0 }}>
+            <BodyBatteryBadge value={bbDays[bbDays.length - 1].bb} />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: COLORS.textFaint, lineHeight: 1.6 }}>
+            Morning Garmin Body Battery (0–100). Higher = more recovered and charged for the day.
           </div>
         </Card>
       )}
@@ -277,6 +402,7 @@ export default function HistoryView({ allData, settings }) {
         const rec = day.whoop?.recovery;
         const hrv = day.whoop?.hrv;
         const dayHRCV = hrcvByDate[d] ?? null;
+        const dayBB = day.whoop?.bodyBattery;
 
         return (
           <Card key={d} style={{ padding: "12px 14px" }}>
@@ -314,6 +440,20 @@ export default function HistoryView({ allData, settings }) {
                         CV {dayHRCV.toFixed(1)}%
                       </span>
                     )}
+                  </div>
+                )}
+                {/* Body Battery pill */}
+                {dayBB != null && (
+                  <div style={{ marginTop: 3 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, fontFamily: "monospace",
+                      color: bbColor(dayBB),
+                      background: bbColor(dayBB) + "18",
+                      border: `1px solid ${bbColor(dayBB)}33`,
+                      borderRadius: 3, padding: "1px 5px",
+                    }}>
+                      Body Batt {dayBB}
+                    </span>
                   </div>
                 )}
                 {aiTargets && (

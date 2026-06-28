@@ -6,6 +6,7 @@ import HistoryView from "./HistoryView.jsx";
 import SettingsView from "./SettingsView.jsx";
 import BriefingView from "./BriefingView.jsx";
 import { computeDynamicBaseline } from "./pmc.js";
+import { macroTargets } from "./macros.js";
 
 const NAV = [
   { id: "dashboard", icon: "◈", label: "Today" },
@@ -53,20 +54,37 @@ export default function App() {
   // AI targets take priority when set by the briefing
   const aiTargets = dayData.aiTargets || null;
 
-  // Base target: RMR × 1.2 + walk — no workout, no load premium
+  // ── Effort-based macro targets ──────────────────────────────────────────────
+  // P/C/F (g/kg) selected by the training-day effort tier. This replaces the
+  // pmc-derived macros (fixed 1.85 g/kg protein, load-scaled carbs). Calories
+  // are still governed by the dynamic RMR + activity + load-premium model.
+  // settings.weight is canonical kg, so unit: "kg".
+  const effortSessions = [];
+  if (dayData.workout) effortSessions.push({
+    type: dayData.workout.type || "workout",
+    durationMin: dayData.workout.duration || 0,
+    tss: dayData.workout.tss,
+    kcal: dayData.workout.calories,
+  });
+  if (dayData.walk?.minutes) effortSessions.push({ type: "walk", durationMin: dayData.walk.minutes });
+
+  const effort = aiTargets
+    ? null
+    : macroTargets({ weight: settings.weight, unit: "kg", sessions: effortSessions });
+  const effortMacros = effort
+    ? { protein: effort.grams.protein, carbs: effort.grams.carb, fat: effort.grams.fat }
+    : {};
+
+  // Base target: RMR × 1.15 + walk — no workout, no load premium
   const baseTargets = aiTargets || {
     calories: db.baseTarget,
-    protein: db.protein,
-    carbs: db.carbs,
-    fat: db.fat,
+    ...effortMacros,
   };
 
   // Adjusted target: base + workout kcal + 7-day load premium
   const adjustedTargets = aiTargets || {
     calories: db.adjustedTarget,
-    protein: db.protein,
-    carbs: db.carbs,
-    fat: db.fat,
+    ...effortMacros,
   };
 
   // Gap always shown against adjusted target
@@ -132,6 +150,7 @@ export default function App() {
             settings={settings} dayDescription={dayData.dayDescription}
             aiTargets={aiTargets} isToday={isToday}
             dynamicBaseline={db}
+            effortTier={effort?.tier} effortKcal={effort?.kcal}
           />
         )}
         {tab === "log" && (
