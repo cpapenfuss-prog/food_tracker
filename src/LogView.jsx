@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { COLORS, Card, SectionTitle, Label, Input, primaryBtn, ghostBtn, chipBtn, StatMini, feelColor, feelColor2 } from "./shared.jsx";
 import MealTemplates, { addTemplate } from "./MealTemplates.jsx";
+import { parseBodyBattery } from "./bodyBattery.js";
 
 // ── API call — handles text only, image only, or both ─────────────────────────
 async function estimateMeal(description, apiKey, imageBase64 = null, imageType = "image/jpeg") {
@@ -411,10 +412,17 @@ function WalkLogger({ dayData, updateDay }) {
 // ── WHOOP logger ──────────────────────────────────────────────────────────────
 function WhoopLogger({ dayData, updateDay }) {
   const wh = dayData.whoop || {};
-  const [form, setForm] = useState({ recovery: wh.recovery ?? "", hrv: wh.hrv ?? "", rhr: wh.rhr ?? "", sleep: wh.sleep ?? "" });
+  const [form, setForm] = useState({
+    recovery: wh.recovery ?? "", hrv: wh.hrv ?? "", rhr: wh.rhr ?? "", sleep: wh.sleep ?? "",
+    bodyBattery: wh.bodyBattery ?? "",
+  });
 
   function save() {
-    updateDay({ whoop: { recovery: Number(form.recovery), hrv: Number(form.hrv), rhr: Number(form.rhr), sleep: Number(form.sleep) } });
+    updateDay({ whoop: {
+      recovery: Number(form.recovery), hrv: Number(form.hrv),
+      rhr: Number(form.rhr), sleep: Number(form.sleep),
+      bodyBattery: parseBodyBattery(form.bodyBattery), // 0–100 int, or null if blank
+    } });
   }
 
   return (
@@ -426,6 +434,13 @@ function WhoopLogger({ dayData, updateDay }) {
         <div><Label>RHR (bpm)</Label><Input value={form.rhr} onChange={v => setForm(f => ({ ...f, rhr: v }))} placeholder="48" type="number" /></div>
         <div><Label>Sleep (h)</Label><Input value={form.sleep} onChange={v => setForm(f => ({ ...f, sleep: v }))} placeholder="7.5" type="number" step="0.1" /></div>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <Label>Morning Body Battery (0–100) · Garmin</Label>
+        <Input value={form.bodyBattery} onChange={v => setForm(f => ({ ...f, bodyBattery: v }))} placeholder="e.g. 78" type="number" />
+        <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
+          Optional — your on-waking Garmin value. Leave blank to skip.
+        </div>
+      </div>
       <button onClick={save} style={{ ...primaryBtn, width: "100%" }}>Save WHOOP data</button>
     </Card>
   );
@@ -433,19 +448,35 @@ function WhoopLogger({ dayData, updateDay }) {
 
 // ── Body logger ───────────────────────────────────────────────────────────────
 function BodyLogger({ dayData, updateDay }) {
+  const LB_PER_KG = 2.2046226218;
   const b = dayData.body || {};
-  const [form, setForm] = useState({ weight: b.weight ?? "", energy: b.energy ?? "" });
+  // body.weight is stored in kg (canonical, read by history/dashboard/pmc).
+  // Entry is in lbs; convert on save and seed the field from stored kg.
+  const [form, setForm] = useState({
+    weightLb: b.weight ? (Number(b.weight) * LB_PER_KG).toFixed(1) : "",
+    energy: b.energy ?? "",
+  });
+
+  const kg = Number(form.weightLb) ? Number(form.weightLb) / LB_PER_KG : 0;
 
   function save() {
-    updateDay({ body: { weight: Number(form.weight), energy: Number(form.energy) } });
+    updateDay({ body: {
+      weight: form.weightLb ? Number((Number(form.weightLb) / LB_PER_KG).toFixed(2)) : 0,
+      energy: Number(form.energy),
+    } });
   }
 
   return (
     <Card>
       <SectionTitle>Body & Energy</SectionTitle>
       <div style={{ marginBottom: 12 }}>
-        <Label>Weight (kg)</Label>
-        <Input value={form.weight} onChange={v => setForm(f => ({ ...f, weight: v }))} placeholder="82.0" type="number" step="0.1" />
+        <Label>Weight (lbs)</Label>
+        <Input value={form.weightLb} onChange={v => setForm(f => ({ ...f, weightLb: v }))} placeholder="180.0" type="number" step="0.1" />
+        {kg > 0 && (
+          <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: 4 }}>
+            = {kg.toFixed(1)} kg (stored)
+          </div>
+        )}
       </div>
       <div style={{ marginBottom: 16 }}>
         <Label>Subjective energy (1–10)</Label>

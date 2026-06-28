@@ -314,9 +314,9 @@ export default function HistoryView({ allData, settings }) {
     </div>
   );
 
-  // Weight
+  // Weight (stored kg, displayed in lbs)
   const weightDays = days.filter(d => allData[d]?.body?.weight).slice(0, 14).reverse();
-  const weights = weightDays.map(d => allData[d].body.weight);
+  const weights = weightDays.map(d => +(allData[d].body.weight * 2.2046).toFixed(1));
 
   // HRV — chronological (oldest first), up to 30 logged days
   const hrvDays = days
@@ -383,7 +383,7 @@ export default function HistoryView({ allData, settings }) {
       {weightDays.length > 1 && (
         <Card>
           <SectionTitle>Weight trend</SectionTitle>
-          <MiniChart values={weights} labels={weightDays.map(d => d.slice(5))} color={COLORS.blue} unit="kg" />
+          <MiniChart values={weights} labels={weightDays.map(d => d.slice(5))} color={COLORS.blue} unit="lb" />
         </Card>
       )}
 
@@ -421,7 +421,7 @@ export default function HistoryView({ allData, settings }) {
                   <div style={{ fontSize: 11, color: COLORS.textFaint }}>Walk {day.walk.minutes} min</div>
                 )}
                 {day.body?.weight && (
-                  <div style={{ fontSize: 11, color: COLORS.textFaint }}>{day.body.weight} kg</div>
+                  <div style={{ fontSize: 11, color: COLORS.textFaint }}>{(day.body.weight * 2.2046).toFixed(1)} lb</div>
                 )}
                 {/* HRV + inline HRCV badge */}
                 {hrv > 0 && (

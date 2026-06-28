@@ -237,7 +237,7 @@ export default function Dashboard({ dayData, totals, calorieGap, baseTargets, ad
         <Card>
           <SectionTitle>Body</SectionTitle>
           <div style={{ display: "flex", gap: 16 }}>
-            <StatMini label="Weight" val={dayData.body.weight} unit="kg" color={COLORS.text} />
+            <StatMini label="Weight" val={(dayData.body.weight * 2.2046).toFixed(1)} unit="lb" color={COLORS.text} />
             {dayData.body.energy && <StatMini label="Energy" val={dayData.body.energy} unit="/10" color={feelColor2(dayData.body.energy)} />}
           </div>
         </Card>
